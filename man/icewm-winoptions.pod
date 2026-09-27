@@ -148,6 +148,12 @@ a default keyboard layout in F<preferences>.
 
 All windows with the same frame label become tabs in a single frame.
 
+=item B<tiling>: {B<on>|B<off>} (default: not set)
+
+Force a window into (B<on>) or out of (B<off>) the tiling layout,
+overriding the workspace default. Windows set to B<off> always float
+even when tiling is enabled for their workspace.
+
 =back
 
 =head2 FUNCTION OPTIONS

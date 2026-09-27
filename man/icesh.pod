@@ -891,6 +891,130 @@ Let icewm reload the C<toolbar> file.
 
 Let icewm refresh the desktop background.
 
+=item B<tiling>
+
+Toggle herbstluftwm-style tiling for the active workspace. Running
+this once more disables tiling again and returns windows to free
+placement.
+
+=item B<tiling split> [I<direction> [I<fraction>]]
+
+Split the focused tiling frame. I<direction> is C<v> (left/right,
+default) or C<h> (top/bottom). I<fraction> is the fraction of the
+first child, between C<0> and C<1> (default C<0.5>).
+
+=item B<tiling remove>
+
+Remove the focused tiling frame; its windows are merged into the
+sibling frame.
+
+=item B<tiling focus> I<path-or-label>
+
+Move tiling focus to the frame at I<path> (an index string built from
+C<0> and C<1>, e.g. C<01>) or with the given I<label>.
+
+=item B<tiling setlabel> I<label>
+
+Set (or clear, with an empty label) the label of the focused frame.
+Labels can then be used with B<tiling focus>.
+
+=item B<tiling dump>
+
+Print the tiling tree of the active workspace as an S-expression.
+
+=item B<tiling load> I<layout>
+
+Replace the tiling tree of the active workspace with I<layout>, in
+the format produced by B<tiling dump>.
+
+=item B<flex add> I<label> I<x> I<y> [I<width> I<height>]
+
+Create (or update) a flexible frame with the given I<label> at the
+absolute position I<x>,I<y> and size I<width> x I<height>. When only
+the position is given, the frame defaults to 80% of the work area,
+centered on I<x>,I<y>. The focused window is bound to the new frame
+and resized to it. Flexible frames are independent of the tiling
+frame tree and may overlap each other arbitrarily.
+
+=item B<flex remove> I<label>
+
+Remove the flexible frame with the given I<label>; its windows are
+unbound and return to free placement.
+
+=item B<flex focus> I<label>
+
+Set input focus to the window bound to the flexible frame I<label>.
+
+=item B<flex setlabel> I<label> I<newlabel>
+
+Rename the flexible frame I<label> to I<newlabel>.
+
+=item B<flex resize> I<label> I<dw> I<dh> [I<dx> I<dy>]
+
+Resize (and optionally shift) a flexible frame by relative deltas,
+applied to its current rectangle. I<dw> and I<dh> change the width and
+height (negative values shrink, down to a minimum of 1 pixel);
+I<dx> and I<dy> move the frame by that many pixels (default 0,
+negative moves towards the top-left). A label of C<.> (or an empty
+label) applies to the focused frame. Unlike B<flex add>, the frame is
+not recreated: its bound windows and group membership are preserved,
+and the focus outline follows the frame's new rectangle.
+
+=item B<flex dump>
+
+Print all flexible frames of the active workspace, one per line, as
+I<label> I<x> I<y> I<width> I<height>.
+
+=item B<flex clear>
+
+Remove all flexible frames of the active workspace and unbind their
+windows.
+
+=item B<flex highlight pen> I<thickness>
+
+Set the thickness of the persistent focus outline, in pixels
+(0..255; default 3). The outline is drawn around the rectangle of the
+focused flexible frame and stays visible while the frame keeps focus;
+it is hidden while the focused window is fullscreen.
+
+=item B<flex highlight color> I<red> I<green> I<blue>
+
+Set the color of the persistent focus outline. Each component is in
+0..255 (default (0x30, 0xFF, 0x60)). The outline repaints immediately,
+even if focus has not moved.
+
+=item B<flex group add> I<name> I<labels...>
+
+Add the flexible frames I<labels> to the group I<name>, creating the
+group when it does not exist yet. Groups are a purely organizational
+layer on top of the frames: they do not change the frames themselves,
+and frames may belong to several groups at once.
+
+=item B<flex group open> I<name>
+
+Activate the member of group I<name> that was focused most recently;
+when no member was focused yet, the first member with a focusable
+window is used. Opening a group brings that frame's window to the
+foreground on its workspace.
+
+=item B<flex group focus> [B<next>|B<prev>] [I<name>]
+
+Move the input focus to the next (or, with B<prev>, the previous)
+member after the currently focused frame, wrapping around the group.
+Without I<name> this cycles among all flexible frames of the active
+workspace; with I<name> it cycles within that group only. The default
+direction is B<next>.
+
+=item B<flex group remove> I<name>
+
+Delete the group I<name>. The frames themselves (and their windows)
+are kept.
+
+=item B<flex group dump>
+
+Print all groups of the active workspace, one per line, as
+I<name> I<labels...>.
+
 =item B<guievents>
 
 Monitor the B<ICEWM_GUI_EVENT> property and report all changes.

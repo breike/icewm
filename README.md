@@ -120,6 +120,78 @@ Currently, the only included utilities are:
  - [__icesound__(1)][21] (_play audio files when interesting GUI events happen_).
 
 
+Tiling and flexible frames
+--------------------------
+
+IceWM can arrange windows in two complementary, opt-in ways, both driven
+through `icesh(1)` and both per-workspace:
+
+ * **Binary tiling** (_herbstluftwm_ style): windows live in a tree of
+   frames that is split and reorganised; the tree splits the whole work
+   area. Enable it with `icesh tiling` (bare command toggles tiling off
+   and on).
+
+ * **Flexible frames**: independent, explicitly positioned rectangles
+   that may overlap; windows bound to a frame are resized to it. Frames
+   can be grouped, and a group can be brought up again with one command.
+
+All commands take effect on the active workspace and are documented in
+`man icesh`.
+
+**Binary tiling** commands:
+
+    icesh tiling                         # toggle tiling on this workspace
+    icesh tiling split [v|h [frac]]      # split focused frame (v = left/right, h = top/bottom; default 0.5)
+    icesh tiling remove                  # merge focused frame into its sibling
+    icesh tiling focus <path-or-label>   # focus frame at path (e.g. 01) or by label
+    icesh tiling setlabel <label>        # label the focused frame (empty clears)
+    icesh tiling dump                    # print the layout as an S-expression
+    icesh tiling load <layout>           # replace the layout from a dump
+
+**Flexible-frame** commands:
+
+    icesh flex add <label> <x> <y> [w [h]]   # create/update a frame; binds the focused window
+    icesh flex remove <label>                # delete a frame, unbinding its windows
+    icesh flex focus <label>                 # focus the window bound to this frame
+    icesh flex setlabel <label> <new>        # rename a frame
+    icesh flex resize <label> <dw> <dh> [dx [dy]]  # grow/shrink (and shift) a frame; "." = focused
+    icesh flex dump                          # list frames as "label x y w h"
+    icesh flex clear                         # remove all frames of this workspace
+    icesh flex highlight pen <n>             # set focus-outline thickness, 0..255 (default 3)
+    icesh flex highlight color <r> <g> <b>   # set focus-outline color, 0..255 each (default 0x30 0xFF 0x60)
+
+**Flexible-frame groups:**
+
+    icesh flex group add <name> <labels...>  # add frames to a group (creating it)
+    icesh flex group open <name>             # activate the group's last focused frame
+    icesh flex group focus [next|prev] [name]# cycle focus within a group, or across all frames
+    icesh flex group remove <name>           # delete the group (frames are kept)
+    icesh flex group dump                    # list groups as "name label1 label2 ..."
+
+Groups are a purely organizational layer on top of the frames: the
+frames keep their own geometry and membership in several groups at
+once. `flex group open` brings up the frame of the group that was
+focused most recently (falling back to the first focusable member);
+`flex group focus` wraps around and optional `prev` cycles backwards.
+
+`flex resize` changes a frame's geometry by relative deltas instead of
+recreating it like `flex add` does: the frame keeps its identity, bound
+windows and group membership, and only its rectangle (and everything
+inside it) moves and resizes. A label of `.` applies to the focused
+frame, and the assigned `focus` outline follows the frame:
+
+    icesh flex resize . -20 0    # shrink the focused frame by 20 px
+    icesh flex resize A 0 0 10 10  # move frame A 10 px right and down
+
+While a flexible frame is focused, a persistent outline is drawn around
+the frame rectangle so you can always see which frame is active. It
+stays visible on non-fullscreen windows (it is hidden while the focused
+window is fullscreen, and follows the frame when focus moves); its
+thickness and color are adjustable at runtime:
+
+    icesh flex highlight pen 5              # thicker outline
+    icesh flex highlight color 255 128 0    # orange outline
+
 Third-party Utilities
 ---------------------
 

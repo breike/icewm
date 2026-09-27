@@ -25,6 +25,7 @@ WindowOption::WindowOption(mstring n_class_instance):
     layer(WinLayerInvalid),
     tray(WinTrayInvalid),
     order(0), opacity(0),
+    tiling(-1),
     gflags(0), gx(0), gy(0), gw(0), gh(0),
     frame(0), serial(WindowOptions::serial)
 {
@@ -214,6 +215,17 @@ void WindowOptions::setWinOption(mstring n_class_instance,
                     return;
                 }
         }
+    } else if (strcmp(opt, "tiling") == 0) {
+        // "tiling on|off|true|false|0|1": -1, 0, or 1
+        op->tiling = 0;
+        if (strcmp(arg, "on") == 0 ||
+            strcmp(arg, "true") == 0 ||
+            strcmp(arg, "1") == 0)
+            op->tiling = 1;
+        else if (strcmp(arg, "off") == 0 ||
+                 strcmp(arg, "false") == 0 ||
+                 strcmp(arg, "0") == 0)
+            op->tiling = 0;
     } else {
         const unsigned foMaximized = YFrameWindow::foMaximizedHorz |
                                      YFrameWindow::foMaximizedVert;

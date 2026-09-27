@@ -29,6 +29,8 @@
 #include "keysyms.h"
 #include "intl.h"
 #include "ywordexp.h"
+#include "tilingmgr.h"
+#include "flexframe.h"
 
 YContext<YFrameClient> clientContext("clientContext", false);
 
@@ -937,7 +939,7 @@ void YWindowManager::handleClientMessage(const XClientMessageEvent &message) {
     if (message.message_type == _XA_ICEWM_ACTION) {
         const long data = message.data.l[1];
         MSG(("ClientMessage: _ICEWM_ACTION => %ld", data));
-        if (inrange(data, 2L, 20L))
+        if (inrange(data, 2L, long(LAST_ICEWM_ACTION)))
             smActionListener->handleSMAction(WMAction(data));
         return;
     }
@@ -1136,6 +1138,14 @@ void YWindowManager::setFocus(YFrameWindow *f, bool canWarp, bool reorder) {
     }
 
     unlockWorkArea();
+
+    // keep the persistent flexible-frame focus outline in sync with
+    // whichever window actually ended up focused. setFocus() updates
+    // fFocusWin only for some windows (e.g. those with an input-focus
+    // hint), so pass the window explicitly; this covers every focus
+    // path.
+    flexUpdateHighlight(this, f);
+
     MSG(("SET FOCUS END"));
 }
 
@@ -1326,6 +1336,13 @@ void YWindowManager::manageClients() {
     ungrabServer();
     unlockRestack();
     unlockWorkArea();
+
+    // tiling: if enabled by pref, activate tiling on all workspaces
+    // (this re-binds the windows managed during startup and lays out).
+    if (tilingEnabled) {
+        for (int ws = 0; ws < workspaceCount; ++ws)
+            tilingEnableWorkspace(this, ws);
+    }
 
     YProperty prop(this, _XA_NET_ACTIVE_WINDOW, F32, 1, XA_WINDOW);
     if (prop && prop[0]) {
@@ -1892,6 +1909,11 @@ void YWindowManager::manageClient(YFrameClient* client, bool mapClient) {
     YRestackLock restack;
     YFullscreenLock full;
 
+    // remember the focus before manage: activating the new window below
+    // would otherwise hide the frame the user was focused on, and flex
+    // would pick the wrong target for a fresh window.
+    YFrameWindow* priorFocus = getFocus();
+
     YFrameWindow* frame = allocateFrame(client);
     if (frame == nullptr) {
         return;
@@ -2002,6 +2024,13 @@ void YWindowManager::manageClient(YFrameClient* client, bool mapClient) {
             fSwitchWindow->createdFrame(frame);
         focusOverlap();
     }
+
+    // flexible frames: now that placeWindow has positioned the window,
+    // snap it into the workspace's flexible frame (if any single one
+    // exists) and re-apply the rectangles so the window ends up at
+    // the frame's geometry instead of the placement it just got.
+    if (isRunning())
+        flexBindFrame(this, frame, priorFocus);
 }
 
 void YWindowManager::focusOverlap() {
@@ -2832,6 +2861,14 @@ void YWindowManager::activateWorkspace(int workspace) {
         }
         unlockFocus();
 
+        // tiling: apply the layout of the workspace we just switched to
+        // (only if a frame tree exists for it and tiling is enabled).
+        tilingApplyLayout(this, workspace);
+
+        // flexible frames: apply the rectangles of the workspace we
+        // just switched to (no-op when it has no flexible frames).
+        flexApplyLayout(this, workspace);
+
         YFrameWindow *toFocus = getLastFocus(true, workspace);
         setFocus(toFocus, false, !switchWindowVisible());
         resetColormap(true);
@@ -2862,6 +2899,9 @@ void YWindowManager::extendWorkspaces(int target) {
                 snprintf(buf, sizeof buf, ws < 999 ? "%3d " : "%d", 1 + ws);
             }
         } while (workspaces.add(buf) && ++ws < target);
+        // tiling: keep the per-workspace registry in sync
+        for (int i = 0; i < workspaceCount; ++i)
+            Tiling::instance().ensure(i);
 
         updateWorkspaces(true);
     }
@@ -2891,8 +2931,11 @@ void YWindowManager::lessenWorkspaces(int target) {
         }
     }
 
-    for (int i = workspaceCount - target; 0 < i && target < workspaceCount; --i)
+    for (int i = workspaceCount - target; 0 < i && target < workspaceCount; --i) {
         workspaces.drop();
+        // tiling: forget the state of the workspace that was dropped
+        Tiling::instance().forget(workspaceCount - 1);
+    }
 
     updateWorkspaces(false);
 
@@ -3013,6 +3056,13 @@ void YWindowManager::readDesktopNames(bool init, bool net) {
     }
     else {
         setDesktopNames();
+    }
+
+    if (init) {
+        // tiling: pre-create the per-workspace registry entries so
+        // windows get bound as soon as they are managed.
+        for (int i = 0; i < workspaceCount; ++i)
+            Tiling::instance().ensure(i);
     }
 }
 
@@ -3378,6 +3428,7 @@ void YWindowManager::switchFocusTo(YFrameWindow *frame, bool reorderFocus) {
     }
     notifyActive(frame);
     updateClientList();
+    flexUpdateHighlight(this, frame);
 }
 
 void YWindowManager::switchFocusFrom(YFrameWindow *frame) {
@@ -3385,6 +3436,8 @@ void YWindowManager::switchFocusFrom(YFrameWindow *frame) {
         fFocusWin = nullptr;
         frame->loseWinFocus();
     }
+    // focus is leaving: hide the persistent frame outline
+    flexUpdateHighlight(this, nullptr);
 }
 
 void YWindowManager::popupWindowListMenu(YWindow *owner, int x, int y) {

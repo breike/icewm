@@ -177,6 +177,14 @@ Show position status window during move/resize.
 
 Show name of current workspace while switching.
 
+=item B<TilingEnabled>=0
+
+Enable herbstluftwm-style tiling for all workspaces at startup.
+When enabled, every managed window that is a tiling candidate is bound
+to a frame of the workspace's frame tree and the tree layout is
+applied (see B<icesh>(1) for the C<tiling> commands). Default is off;
+windows behave as in a normal floating window manager.
+
 =item B<MinimizeToDesktop>=0
 
 Display mini-icons on desktop for minimized windows.

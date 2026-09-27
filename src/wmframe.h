@@ -342,7 +342,28 @@ public:
     void removeAppStatus();
 
     void setWindowType(WindowType winType) { fWindowType = winType; }
+    WindowType windowType() const { return fWindowType; }
     bool isTypeDock() { return (fWindowType == wtDock); }
+
+    // --- tiling frame-tree support (herbstluftwm-style) ------------
+    //! if non-null, this window is bound to this leaf of the tiling tree
+    void setFrameLeaf(class FrameLeaf* leaf) { fFrameLeaf = leaf; }
+    FrameLeaf* frameLeaf() const { return fFrameLeaf; }
+    //! whether the leaf (not free placement) controls this window's geometry
+    bool isTiled() const { return fFrameLeaf != nullptr; }
+    //! index/order within the leaf (for max/grid/linear layouts)
+    void setTilingIndex(int i) { fTilingIndex = i; }
+    int tilingIndex() const { return fTilingIndex; }
+    //! set by the tiling layout pass to indicate the geometry was applied
+    void setTilingApplied(bool b) { fTilingApplied = b; }
+    bool tilingApplied() const { return fTilingApplied; }
+    //! true if a `tiling off` winoption forbids tiling this window
+    void setTilingForcedFloating(bool b) { fTilingForcedFloating = b; }
+    bool tilingForcedFloating() const { return fTilingForcedFloating; }
+    //! the flexible frame this window is bound to (or null).
+    //! Setting a new frame detaches it from the previous one.
+    void setFlexFrame(class FlexFrame* f);
+    FlexFrame* flexFrame() const { return fFlexFrame; }
 
     int getWorkspace() const { return fWinWorkspace; }
     int getTrayOrder() const { return fTrayOrder; }
@@ -445,6 +466,14 @@ private:
     YClientContainer *fContainer;
     YFrameTitleBar *fTitleBar;
 
+    // --- tiling frame-tree state (herbstluftwm-style) ---
+    class FrameLeaf* fFrameLeaf = nullptr;
+    int fTilingIndex = 0;
+    bool fTilingApplied = false;
+    bool fTilingForcedFloating = false;
+    // --- flexible-frame state ---
+    class FlexFrame* fFlexFrame = nullptr;
+
     YPopupWindow *fPopupActive;
 
     int buttonDownX, buttonDownY;
@@ -468,6 +497,15 @@ public:
     IterType iterator() { return fTabs.iterator(); }
     YArray<YFrameClient*>& clients() { return fTabs; }
     YFrameClient* current() { return fClient; }
+
+    //! Apply a tiling cell geometry to this frame (used by the
+    //! tiling layout pass). Repositions the frame and re-lays out the
+    //! client inside it; equivalent to what IceWM does itself when it
+    //! places a window.
+    void applyTilingGeometry(const YRect &r) {
+        setWindowGeometry(r);
+        performLayout();
+    }
     static YArray<YFrameWindow*>& tabbing() { return tabbedFrames; }
     static YArray<YFrameWindow*>& fnaming() { return namedFrames; }
 private:

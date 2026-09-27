@@ -28,6 +28,7 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <vector>
+#include <string>
 #include <algorithm>
 
 #include <X11/Xlib.h>
@@ -234,6 +235,8 @@ static NAtom ATOM_GUI_EVENT(XA_GUI_EVENT_NAME);
 static NAtom ATOM_ICE_ACTION("_ICEWM_ACTION");
 static NAtom ATOM_ICE_DOCKAPPS("_ICEWM_DOCKAPPS");
 static NAtom ATOM_ICE_WINOPT("_ICEWM_WINOPTHINT");
+static NAtom ATOM_ICE_TILING("_ICEWM_TILING");
+static NAtom ATOM_ICE_TILING_REPLY("_ICEWM_TILING_REPLY");
 static NAtom ATOM_MOTIF_HINTS(_XA_MOTIF_WM_HINTS);
 static NAtom ATOM_NET_CLIENT_LIST("_NET_CLIENT_LIST");
 static NAtom ATOM_NET_CLIENT_LIST_STACKING("_NET_CLIENT_LIST_STACKING");
@@ -1759,6 +1762,8 @@ private:
     bool isArg(const char* str);
     bool isAction(const char* str, int argCount);
     bool icewmAction();
+    bool tilingCommand();
+    bool flexCommand();
     bool conditional();
     bool evaluating();
     void unexpected();
@@ -3503,6 +3508,12 @@ bool IceSh::icewmAction()
         }
     }
 
+    if (tilingCommand())
+        return true;
+
+    if (flexCommand())
+        return true;
+
     return guiEvents()
         || setWorkspaceNames()
         || setWorkspaceName()
@@ -3531,6 +3542,297 @@ bool IceSh::icewmAction()
         || pick()
         || sync()
         ;
+}
+
+/*! Handle `tiling ...` subcommands. Writes a NUL-separated request
+ * string to the _ICEWM_TILING property on the root window; IceWM
+ * picks it up on PropertyNotify and executes it against the active
+ * workspace. `tiling dump` reads the reply from _ICEWM_TILING_REPLY.
+ */
+bool IceSh::tilingCommand()
+{
+    if ( !isArg("tiling"))   // isArg consumes "tiling"
+        return false;
+
+    // subcommand
+    if ( !haveArg()) {
+        // bare `tiling`: toggle tiling on the active workspace
+        send(ATOM_ICE_ACTION, root, CurrentTime, ICEWM_ACTION_TILING);
+        XSync(display, False);
+        return true;
+    }
+
+    const char* sub(*argp);
+
+    std::string request = "toggle"; // default action if none given
+    if (0 == strcmp(sub, "split")) {
+        ++argp;
+        request = "split";
+        // split [dir [fraction]]
+        if (haveArg() && !isArg("-")) {
+            request += std::string(1, '\0') + std::string(getArg());
+            if (haveArg() && !isArg("-")) {
+                const char* arg2 = getArg();
+                // validate numeric fraction
+                char* end = nullptr;
+                double f = strtod(arg2, &end);
+                if (end != arg2 && *end == 0 && 0.0 < f && f < 1.0)
+                    request += std::string(1, '\0') + std::string(arg2);
+            }
+        }
+    }
+    else if (0 == strcmp(sub, "remove")) {
+        ++argp;
+        request = "remove";
+    }
+    else if (0 == strcmp(sub, "focus")) {
+        ++argp;
+        if (haveArg()) {
+            request = "focus";
+            request += std::string(1, '\0') + std::string(getArg());
+        }
+        else {
+            msg(_("tiling focus requires an index or label."));
+            throw 1;
+        }
+    }
+    else if (0 == strcmp(sub, "setlabel")) {
+        ++argp;
+        request = "setlabel";
+        if (haveArg())
+            request += std::string(1, '\0') + std::string(getArg());
+    }
+    else if (0 == strcmp(sub, "dump")) {
+        ++argp;
+        request = "dump";
+        // finalize the request now, then read the reply below
+    }
+    else if (0 == strcmp(sub, "load")) {
+        ++argp;
+        if (haveArg()) {
+            request = "load";
+            request += std::string(1, '\0') + std::string(getArg());
+        }
+        else {
+            msg(_("tiling load requires a layout expression."));
+            throw 1;
+        }
+    }
+    else {
+        msg(_("tiling: unknown subcommand `%s'."), sub);
+        throw 1;
+    }
+
+    // write the request to _ICEWM_TILING
+    XChangeProperty(display, root, ATOM_ICE_TILING, ATOM_ICE_TILING,
+                    8, PropModeReplace,
+                    reinterpret_cast<const unsigned char*>(request.data()),
+                    request.size());
+    // notify IceWM to process it (in case it doesn't watch PropertyNotify)
+    send(ATOM_ICE_ACTION, root, CurrentTime, ICEWM_ACTION_TILING);
+    XSync(display, False);
+    // Wait until IceWM has consumed the request (it deletes the
+    // property after reading). This serializes consecutive commands so
+    // a fast script cannot overwrite a request before it is read.
+    {
+        Atom type = None;
+        int fmt = 0;
+        unsigned long nitems = 0, after = 0;
+        unsigned char* data = nullptr;
+        for (int attempt = 0; attempt < 500; ++attempt) {
+            XSync(display, False);
+            if (Success == XGetWindowProperty(display, root,
+                                              ATOM_ICE_TILING, 0, 8192, False,
+                                              AnyPropertyType, &type, &fmt,
+                                              &nitems, &after, &data)) {
+                if (data)
+                    XFree(data);
+                if (nitems == 0)  // consumed
+                    break;
+            }
+            usleep(2 * 1000);
+        }
+    }
+
+    // for dump, read the reply property written by IceWM (poll briefly)
+    if (request.compare(0, 4, "dump") == 0) {
+        Atom type = None;
+        int fmt = 0;
+        unsigned long nitems = 0, after = 0;
+        unsigned char* data = nullptr;
+        bool got(false);
+        for (int attempt = 0; attempt < 50 && !got; ++attempt) {
+            XSync(display, False);
+            if (Success == XGetWindowProperty(display, root,
+                                              ATOM_ICE_TILING_REPLY,
+                                              0, 8192, False,
+                                              ATOM_ICE_TILING_REPLY,
+                                              &type, &fmt, &nitems, &after,
+                                              &data))
+            {
+                if (data && nitems)
+                    got = true;
+            }
+            if (!got)
+                usleep(2 * 1000);
+        }
+        if (got && data && nitems)
+            printf("%.*s\n", int(nitems), data);
+        if (data)
+            XFree(data);
+        // clear the request so a stale reply is not mistaken for a new one
+        XDeleteProperty(display, root, ATOM_ICE_TILING);
+        XSync(display, False);
+    }
+    return true;
+}
+
+/*! Handle `flex ...` subcommands (flexible frames). Builds a
+ * NUL-separated request and sends it through the same channel as the
+ * tiling commands, since they share the reply property.
+ */
+bool IceSh::flexCommand()
+{
+    if ( !isArg("flex"))   // isArg consumes "flex"
+        return false;
+
+    if ( !haveArg()) {
+        msg(_("flex requires a subcommand (add, remove, focus, setlabel, dump, clear, resize, group, highlight)."));
+        throw 1;
+    }
+
+    const char* sub(*argp);
+    std::string request = "flex";
+    bool replyNeeded = false;   // set for `flex dump`
+
+    if (0 == strcmp(sub, "add")) {
+        ++argp;
+        request += std::string(1, '\0') + "add";
+        // flex add <label> <x> <y> [w [h]]
+        if ( !haveArg()) {
+            msg(_("flex add requires a label and coordinates."));
+            throw 1;
+        }
+        request += std::string(1, '\0') + std::string(getArg());
+        while (haveArg() && !isArg("-"))
+            request += std::string(1, '\0') + std::string(getArg());
+    }
+    else if (0 == strcmp(sub, "remove") || 0 == strcmp(sub, "focus") ||
+             0 == strcmp(sub, "setlabel") || 0 == strcmp(sub, "resize")) {
+        ++argp;
+        std::string tail;
+        while (haveArg() && !isArg("-")) {
+            if ( !tail.empty())
+                tail += std::string(1, '\0');
+            tail += std::string(getArg());
+        }
+        if (tail.empty()) {
+            msg(_("flex %s requires an argument."), sub);
+            throw 1;
+        }
+        request += std::string(1, '\0') + sub;
+        request += std::string(1, '\0') + tail;
+    }
+    else if (0 == strcmp(sub, "dump") || 0 == strcmp(sub, "clear")) {
+        ++argp;
+        request += std::string(1, '\0') + sub;
+        replyNeeded = (0 == strcmp(sub, "dump"));
+    }
+    else if (0 == strcmp(sub, "group")) {
+        // flex group <add|open|focus|remove|dump> ...
+        ++argp;
+        if ( !haveArg()) {
+            msg(_("flex group requires a subcommand (add, open, focus, remove, dump)."));
+            throw 1;
+        }
+        const char* gsub(*argp);
+        request += std::string(1, '\0') + "group";
+        request += std::string(1, '\0') + std::string(gsub);
+        ++argp;
+        while (haveArg() && !isArg("-"))
+            request += std::string(1, '\0') + std::string(getArg());
+        replyNeeded = (0 == strcmp(gsub, "dump"));
+    }
+    else if (0 == strcmp(sub, "highlight")) {
+        // flex highlight pen <n>
+        // flex highlight color <r> <g> <b>
+        ++argp;
+        if ( !haveArg()) {
+            msg(_("flex highlight requires a subcommand (pen, color)."));
+            throw 1;
+        }
+        const char* hsub(*argp);
+        request += std::string(1, '\0') + "highlight";
+        request += std::string(1, '\0') + std::string(hsub);
+        ++argp;
+        while (haveArg() && !isArg("-"))
+            request += std::string(1, '\0') + std::string(getArg());
+    }
+    else {
+        msg(_("flex: unknown subcommand `%s'."), sub);
+        throw 1;
+    }
+
+    // write the request to _ICEWM_TILING (same channel as tiling)
+    XChangeProperty(display, root, ATOM_ICE_TILING, ATOM_ICE_TILING,
+                    8, PropModeReplace,
+                    reinterpret_cast<const unsigned char*>(request.data()),
+                    request.size());
+    send(ATOM_ICE_ACTION, root, CurrentTime, ICEWM_ACTION_TILING);
+    XSync(display, False);
+    // wait until IceWM consumed the request (serializes consecutive
+    // commands so a fast script cannot overwrite a pending one)
+    {
+        Atom type = None;
+        int fmt = 0;
+        unsigned long nitems = 0, after = 0;
+        unsigned char* data = nullptr;
+        for (int attempt = 0; attempt < 500; ++attempt) {
+            XSync(display, False);
+            if (Success == XGetWindowProperty(display, root,
+                                              ATOM_ICE_TILING, 0, 8192, False,
+                                              AnyPropertyType, &type, &fmt,
+                                              &nitems, &after, &data)) {
+                if (data)
+                    XFree(data);
+                if (nitems == 0)  // consumed
+                    break;
+            }
+            usleep(2 * 1000);
+        }
+    }
+
+    // for dump, read the reply property written by IceWM
+    if (replyNeeded) {
+        Atom type = None;
+        int fmt = 0;
+        unsigned long nitems = 0, after = 0;
+        unsigned char* data = nullptr;
+        bool got(false);
+        for (int attempt = 0; attempt < 50 && !got; ++attempt) {
+            XSync(display, False);
+            if (Success == XGetWindowProperty(display, root,
+                                              ATOM_ICE_TILING_REPLY,
+                                              0, 8192, False,
+                                              ATOM_ICE_TILING_REPLY,
+                                              &type, &fmt, &nitems, &after,
+                                              &data))
+            {
+                if (data && nitems)
+                    got = true;
+            }
+            if (!got)
+                usleep(2 * 1000);
+        }
+        if (got && data && nitems)
+            printf("%.*s\n", int(nitems), data);
+        if (data)
+            XFree(data);
+        // clear the request so a stale reply is not mistaken for a new one
+        XDeleteProperty(display, root, ATOM_ICE_TILING);
+        XSync(display, False);
+    }
+    return true;
 }
 
 unsigned IceSh::count() const

@@ -23,6 +23,8 @@ struct WindowOption {
     int tray;
     int order;
     int opacity;
+    //! -1 = inherit (no override), 0 = floating, 1 = tiling
+    int tiling;
     int gflags;
     int gx, gy;
     unsigned gw, gh;

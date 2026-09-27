@@ -27,6 +27,7 @@ XIV(bool, sizeMaximized,                        false)
 XIV(bool, showMoveSizeStatus,                   true)
 XIV(bool, workspaceSwitchStatus,                true)
 XIV(bool, beepOnNewMail,                        false)
+XIV(bool, tilingEnabled,                        false)
 XIV(bool, warpPointer,                          false)
 XIV(bool, warpPointerOnEdgeSwitch,              false)
 XIV(bool, opaqueMove,                           true)
@@ -275,6 +276,7 @@ cfoption icewm_preferences[] = {
     OBV("SizeMaximized",                        &sizeMaximized,                 "Maximized windows can be resized"),
     OBV("ShowMoveSizeStatus",                   &showMoveSizeStatus,            "Show position status window during move/resize"),
     OBV("ShowWorkspaceStatus",                  &workspaceSwitchStatus,         "Show name of current workspace while switching"),
+    OBV("TilingEnabled",                        &tilingEnabled,                 "Enable herbstluftwm-style tiling for all workspaces at startup"),
     OBV("MinimizeToDesktop",                    &minimizeToDesktop,             "Display mini-icons on desktop for minimized windows"),
     OBV("MiniIconsPlaceHorizontal",             &miniIconsPlaceHorizontal,      "Place the mini-icons horizontal instead of vertical"),
     OBV("MiniIconsRightToLeft",                 &miniIconsRightToLeft,          "Place new mini-icons from right to left"),

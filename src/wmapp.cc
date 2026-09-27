@@ -32,6 +32,7 @@
 #include "ycursor.h"
 #include "yxcontext.h"
 #include "ytooltip.h"
+#include "tilingmgr.h"
 #ifdef CONFIG_XFREETYPE
 #include <ft2build.h>
 #include <X11/Xft/Xft.h>
@@ -1134,6 +1135,9 @@ void YWMApp::actionPerformed(YAction action, unsigned int /*modifiers*/) {
         taskBar->handleCollapseButton();
     } else if (action == actionToolbar && taskBar) {
         taskBar->initToolbar();
+    } else if (action == actionTiling) {
+        if (manager)
+            tilingAction(manager);
     } else {
         for (int w = 0; w < workspaceCount; w++) {
             if (workspaceActionActivate[w] == action) {

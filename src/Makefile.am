@@ -395,7 +395,15 @@ icewm_SOURCES = \
 	ysmapp.h \
 	yxcontext.h \
 	yxtray.cc \
-	yxtray.h
+	yxtray.h \
+	frametree.cc \
+	frametree.h \
+	tilinglayout.cc \
+	tilinglayout.h \
+	tilingmgr.cc \
+	tilingmgr.h \
+	flexframe.cc \
+	flexframe.h
 icewm_LDADD = libitk.la libice.la $(IMAGE_LIBS) $(XSM_LIBS) $(CORE_LIBS) @LIBINTL@ @LIBICONV@
 
 icesh_SOURCES = \

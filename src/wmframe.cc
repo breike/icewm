@@ -22,6 +22,8 @@
 #include "wpixmaps.h"
 #include "workspaces.h"
 #include "yxcontext.h"
+#include "tilingmgr.h"
+#include "flexframe.h"
 
 #include "intl.h"
 
@@ -553,6 +555,12 @@ void YFrameWindow::doManage(YFrameClient *clientw, bool &doActivate, bool &reque
     addTransients();
     manager->restackWindows();
 
+    // tiling: bind the new window into its workspace's frame tree so
+    // it participates in the layout (candidate status is checked by
+    // the tree bind; must run after workspace/state are set).
+    if (manager->isRunning())
+        tilingBindFrame(manager, this);
+
     afterManage();
 }
 
@@ -685,7 +693,26 @@ void YFrameWindow::unmanage() {
     fClient = nullptr;
 }
 
+void YFrameWindow::setFlexFrame(FlexFrame* f) {
+    if (fFlexFrame == f)
+        return;
+    if (fFlexFrame != nullptr)
+        fFlexFrame->detach(this);
+    fFlexFrame = f;
+    if (fFlexFrame != nullptr)
+        fFlexFrame->attach(this);
+}
+
 void YFrameWindow::independer(YFrameClient* client) {
+    // tiling: detach the frame from its workspace's frame tree before
+    // it is unmapped/reparented back to the desktop.
+    if (manager->isRunning())
+        tilingUnbindFrame(manager, this);
+
+    // flexible frames: detach from the flexible frame (if any).
+    if (manager->isRunning())
+        flexUnbindFrame(this);
+
     if (client->destroyed())
         client->unmanageWindow();
     else {
@@ -2674,6 +2701,14 @@ void YFrameWindow::getDefaultOptions(bool &requestFocus) {
         fTrayOrder = wo->order;
         if (wo->frame)
             setFrameName(wo->frame);
+        if (wo->tiling == 0) {
+            // forced floating: detach from any tiling leaf and
+            // remember not to re-bind it
+            setFrameLeaf(nullptr);
+            setTilingForcedFloating(true);
+        } else if (wo->tiling == 1) {
+            setTilingForcedFloating(false);
+        }
     }
 }
 
@@ -3570,6 +3605,11 @@ void YFrameWindow::setState(int mask, int state) {
     if (gain & WinStateFocused) {
         if (focused() == false)
             manager->setFocus(this);
+    }
+    if (flip & WinStateFullscreen) {
+        // the persistent focus outline must react to the window going
+        // fullscreen (hide) and coming back (show again)
+        flexUpdateHighlight(manager, this);
     }
 
     if (lose & WinStateUrgent) {

@@ -475,6 +475,7 @@ SET(ICEWM_SRCS
     amailbox.cc aclock.cc acpustatus.cc amemstatus.cc
     applet.cc apppstatus.cc aaddressbar.cc preview.cc
     akeyboard.cc aapm.cc atray.cc ysmapp.cc yxtray.cc
+    frametree.cc tilinglayout.cc tilingmgr.cc flexframe.cc
     )
 do_auto_inc_headers(ICEWM_SRCS)
 concat_dedup(icewm_libs itk ice ${sm_LIBS} ${fontconfig_LDFLAGS}
