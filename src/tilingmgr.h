@@ -186,6 +186,12 @@ bool flexClear(YWindowManager* manager);
 bool flexResize(YWindowManager* manager, const std::string& label,
                 int dw, int dh, int dx, int dy);
 
+//! `flex move <label> <dx> <dy>`: shift a frame by the given relative
+//! deltas without changing its size. A label of "." or an empty label
+//! means the focused frame.
+bool flexMove(YWindowManager* manager, const std::string& label,
+              int dx, int dy);
+
 // --- flexible-frame groups (multiple frames arranged into named
 // --- groups; opening a group activates its most recently focused frame)
 

@@ -960,6 +960,14 @@ label) applies to the focused frame. Unlike B<flex add>, the frame is
 not recreated: its bound windows and group membership are preserved,
 and the focus outline follows the frame's new rectangle.
 
+=item B<flex move> I<label> I<dx> I<dy>
+
+Shift the flexible frame I<label> by I<dx> pixels horizontally and
+I<dy> pixels vertically, without changing its size. A label of C<.>
+(or an empty label) applies to the focused frame. As with B<flex
+resize>, the frame is not recreated: bound windows and group membership
+are preserved, and the focus outline follows the frame.
+
 =item B<flex dump>
 
 Print all flexible frames of the active workspace, one per line, as

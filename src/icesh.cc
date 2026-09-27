@@ -3697,7 +3697,7 @@ bool IceSh::flexCommand()
         return false;
 
     if ( !haveArg()) {
-        msg(_("flex requires a subcommand (add, remove, focus, setlabel, dump, clear, resize, group, highlight)."));
+        msg(_("flex requires a subcommand (add, remove, focus, setlabel, dump, clear, resize, move, group, highlight)."));
         throw 1;
     }
 
@@ -3718,7 +3718,8 @@ bool IceSh::flexCommand()
             request += std::string(1, '\0') + std::string(getArg());
     }
     else if (0 == strcmp(sub, "remove") || 0 == strcmp(sub, "focus") ||
-             0 == strcmp(sub, "setlabel") || 0 == strcmp(sub, "resize")) {
+             0 == strcmp(sub, "setlabel") || 0 == strcmp(sub, "resize") ||
+             0 == strcmp(sub, "move")) {
         ++argp;
         std::string tail;
         while (haveArg() && !isArg("-")) {

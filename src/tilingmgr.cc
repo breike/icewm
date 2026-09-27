@@ -526,6 +526,16 @@ void tilingHandleRequest(YWindowManager* manager, const char* request,
                     flexResize(manager, tokens[2], dw, dh, dx, dy);
                 }
             }
+            else if (sub == "move") {
+                // flex move <label> <dx> <dy>
+                // Shift a frame by the given relative deltas; label
+                // "." means the focused frame.
+                if (tokens.size() > 4) {
+                    int dx = atoi(tokens[3].c_str());
+                    int dy = atoi(tokens[4].c_str());
+                    flexMove(manager, tokens[2], dx, dy);
+                }
+            }
             else if (sub == "highlight") {
                 // flex highlight pen <n>
                 // flex highlight color <r> <g> <b>
@@ -822,6 +832,14 @@ bool flexResize(YWindowManager* manager, const string& label,
     flexApplyLayout(manager, ws);
     flexFrameHighlight(manager, f->rect());
     return true;
+}
+
+bool flexMove(YWindowManager* manager, const string& label,
+              int dx, int dy) {
+    // a pure shift: same geometry logic as `flex resize` with zero
+    // size deltas (label resolution, focused-frame fallback, layout
+    // and outline refresh all live there)
+    return flexResize(manager, label, 0, 0, dx, dy);
 }
 
 // ------------------------------------------------------------------
