@@ -9,7 +9,8 @@
 #include "tilinglayout.h"   // isTilingCandidate
 #include "tilingmgr.h"      // Tiling::instance().flex()
 #include "ypaint.h"         // Graphics
-#include "ywindow.h"        // ::desktop
+#include "ywindow.h"        // ::desktop, shapes extension
+#include "yxapp.h"          // ::xapp
 
 using std::string;
 using std::vector;
@@ -307,6 +308,15 @@ public:
 
     void paint(Graphics& g, const YRect& r) override;
 
+    /*! Restrict the window's visible area (bounding shape) to exactly
+     * the outline rectangle (the frame rect + pen margin) plus the pen
+     * width, so that X does not paint our background over the rest of
+     * the window: the margin band and the interior stay see-through.
+     * After this, background paints only matter within the shape, and
+     * they are covered by paint()'s outline anyway. Called from show()
+     * whenever the window is (re)shaped. */
+    void layoutShape();
+
     //! the focused frame's rectangle (this window just adds the margin)
     YRect fFrameRect;
 };
@@ -314,6 +324,12 @@ public:
 FlexHighlightWindow::FlexHighlightWindow(const YRect& rect) : YWindow(nullptr) {
     setStyle(wsOverrideRedirect | wsSaveUnder);
     setTitle("flex-frame-highlight");
+    // the overlay only ever paints its outline stroke; everything else
+    // must stay see-through (X otherwise fills it with our black
+    // background, which would cover the windows underneath with a black
+    // rim around the frame). The clear/shape logic then restricts the
+    // visible area to the outline itself.
+    setParentRelative();
     // start with a size of zero; YWindow skips XMoveResizeWindow for a
     // null geometry, so this merely creates a (through) unmapped window
     setGeometry(YRect(0, 0, 0, 0));
@@ -331,6 +347,35 @@ void FlexHighlightWindow::paint(Graphics& g, const YRect& /*r*/) {
                fFrameRect.height() - pen);
 }
 
+void FlexHighlightWindow::layoutShape() {
+#ifdef CONFIG_SHAPE
+    if (!shapes.supported)
+        return;
+    // The visible pixels are the outline stroke only. Build the bounding
+    // shape as a RING: the rectangle the stroke is drawn into (frame
+    // rect + pen margin), hollowed out in the middle. Without the inner
+    // hole the shape would be a filled rect covering the whole frame,
+    // and the window's (black, parent-relative) background would still
+    // paint the interior over the windows beneath.
+    const int pen = flexHighlightPen();
+    const int L = pen / 2;                              // stroke inset
+    const int w = int(fFrameRect.width());
+    const int h = int(fFrameRect.height());
+    const int t = pen + 2;                              // stroke thickness (+2 fudge)
+    const int R = L + w - t;
+    const int B = L + h - t;
+    XRectangle ring[4] = {
+        { short(L), short(L),   static_cast<unsigned short>(w), static_cast<unsigned short>(t) }, // top
+        { short(L), short(B),   static_cast<unsigned short>(w), static_cast<unsigned short>(t) }, // bottom
+        { short(L), short(L),   static_cast<unsigned short>(t), static_cast<unsigned short>(h) }, // left
+        { short(R), short(L),   static_cast<unsigned short>(t), static_cast<unsigned short>(h) }, // right
+    };
+    XShapeCombineRectangles(xapp->display(), handle(),
+                            ShapeBounding, 0, 0, ring, 4,
+                            ShapeSet, Unsorted);
+#endif
+}
+
 /*! The currently visible highlight overlay (one per process). It stays
  * created for the lifetime of the session; its size is zero while no
  * flexible frame is focused, and it follows the focused frame's
@@ -344,9 +389,10 @@ public:
 
     /*! Resize (and if needed, map, raise, and repaint) the overlay to
      * outline the given frame rectangle. A null rectangle resizes the
-     * overlay to zero size so nothing is drawn.
+     * overlay to zero size so nothing is drawn. 'manager' provides the
+     * work area used to clamp the overlay to the visible screen.
      */
-    void show(const YRect& rect);
+    void show(YWindowManager* manager, const YRect& rect);
 
     /*! Repaint the currently mapped overlay (after the pen or color
      * changed through IPC). */
@@ -360,7 +406,10 @@ private:
 
 /*! Geometry covering the frame rectangle plus the pen margin (with a
  * little extra headroom so a thick outline is not clipped by the
- * overlay edge). */
+ * overlay edge). The overlay may extend beyond the screen edges when
+ * the frame touches one (its origin goes negative); the drawing inset
+ * (paint() uses pen/2) then places the top/left strokes off-screen —
+ * see the paint() contract below, which clamps to the work area. */
 static YRect flexHighlightGeo(const YRect& rect, int pen) {
     int m = pen;
     // keep a minimum margin so the window decoration (resize handles,
@@ -371,17 +420,48 @@ static YRect flexHighlightGeo(const YRect& rect, int pen) {
                  rect.width() + 2 * m, rect.height() + 2 * m);
 }
 
-void FlexHighlight::show(const YRect& rect) {
+/*! Clamp the given overlay rectangle to the screen work area (the
+ * desktop minus panels), keeping size. The overlay window may not be
+ * larger than the screen's visible area, otherwise its (transparent)
+ * margin band would sit beyond the display — the very top/left band is
+ * what used to paint black over the desktop. Never enlarges. */
+static void flexClampToWorkArea(YWindowManager* manager, YRect& geo) {
+    int mx, my, Mx, My;
+    if (manager)
+        manager->getWorkArea(&mx, &my, &Mx, &My,
+                             manager->activeWorkspace());
+    else {
+        mx = 0; my = 0;
+        Mx = xapp->displayWidth();
+        My = xapp->displayHeight();
+    }
+    // Keep the overlay inside the visible area (the screen or the work
+    // area, whichever the manager reports): a negative origin would put
+    // the (transparent) margin band beyond the display, and a too-large
+    // window would extend past it.
+    if (geo.x() < mx)
+        geo.xx = mx + 1;
+    if (geo.y() < my)
+        geo.yy = my + 1;
+    if (int(geo.right()) > Mx)
+        geo.ww = unsigned(Mx - geo.x());
+    if (int(geo.bottom()) > My)
+        geo.hh = unsigned(My - geo.y());
+}
+
+void FlexHighlight::show(YWindowManager* manager, const YRect& rect) {
     const int pen = flexHighlightPen();
     if (fWin == nullptr)
         fWin = new FlexHighlightWindow(rect);
     if (!rect.nonempty()) {
-        // no frame to outline: shrink to zero and hide. setGeometry
+        // no frame to outline: shrink to zero, empty the shape (so the
+        // window becomes nonexistent on screen) and hide. setGeometry
         // with a null rect skips the X call, so force it via hide;
         // repaint afterwards makes the (possibly) visible outline go
         // away even without an event.
         fRect = YRect();
         fGeo = YRect();
+        fWin->layoutShape();
         fWin->setGeometry(YRect(0, 0, 0, 0));
         fWin->hide();
         fWin->repaint();
@@ -390,7 +470,13 @@ void FlexHighlight::show(const YRect& rect) {
     // the overlay rectangle depends on the pen: when only the pen
     // changed (same focused frame), the geometry still has to be
     // recomputed so a thicker outline is not clipped
-    const YRect geo = flexHighlightGeo(rect, pen);
+    YRect geo = flexHighlightGeo(rect, pen);
+    // clamp to the work area: with the overlay transparent now, an
+    // origin beyond the screen edge would show nothing but still
+    // mis-align the outline (paint draws at pen/2 from the edge).
+    // Clamping keeps the overlay fully on-screen, and paint() draws
+    // the strokes that land on the visible area.
+    flexClampToWorkArea(manager, geo);
     fRect = rect;
     if (geo != fGeo || !fWin->visible()) {
         fGeo = geo;
@@ -398,6 +484,7 @@ void FlexHighlight::show(const YRect& rect) {
         fWin->setGeometry(geo);
         // map FIRST, then raise: raising an unmapped window is a no-op
         // and a freshly mapped window lands at the bottom of the stack
+        fWin->layoutShape();
         fWin->show();
         fWin->raise();
     } else {
@@ -464,21 +551,20 @@ void flexUpdateHighlight(YWindowManager* manager, YFrameWindow* focus) {
         return;
     if (focus == nullptr || !focus->visible() || focus->isFullscreen() ||
         !isFlexCandidate(focus)) {
-        flexHighlight().show(YRect());   // empty rect -> hide
+        flexHighlight().show(manager, YRect());   // empty rect -> hide
         return;
     }
     FlexFrame* frame = focus->flexFrame();
     if (frame == nullptr)
-        flexHighlight().show(YRect());
+        flexHighlight().show(manager, YRect());
     else
-        flexHighlight().show(frame->rect());
+        flexHighlight().show(manager, frame->rect());
 }
 
 /*! Explicitly outline the given flexible frame rectangle (used by the
  * IPC focus commands, which know the frame they just focused). */
 void flexFrameHighlight(YWindowManager* manager, const YRect& rect) {
-    (void)manager;
-    flexHighlight().show(rect);
+    flexHighlight().show(manager, rect);
 }
 
 /*! Repaint the visible outline with the current thickness/color. Used

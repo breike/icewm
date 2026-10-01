@@ -1129,6 +1129,17 @@ void YWindow::setBackgroundPixmap(ref<YPixmap> pixmap) {
 }
 
 void YWindow::setParentRelative() {
+#ifdef CONFIG_SHAPE
+    // A window with a parent-relative background is visible wherever X
+    // has not replaced it with the parent's background: in practice the
+    // whole rectangle. Make such windows see-through around the drawn
+    // content by removing their (fully covering) bounding shape; the
+    // caller is responsible for re-applying a precise shape.
+    if (shapes.supported) {
+        XShapeCombineMask(xapp->display(), handle(),
+                          ShapeBounding, 0, 0, None, ShapeSet);
+    }
+#endif
     setBackgroundPixmap(ParentRelative);
 }
 
