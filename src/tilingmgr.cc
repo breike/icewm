@@ -536,6 +536,13 @@ void tilingHandleRequest(YWindowManager* manager, const char* request,
                     flexMove(manager, tokens[2], dx, dy);
                 }
             }
+            else if (sub == "bind") {
+                // flex bind <label>
+                // Bind the focused window to the frame, moving it
+                // there even if it already lives elsewhere.
+                if (tokens.size() > 2)
+                    flexBind(manager, tokens[2]);
+            }
             else if (sub == "highlight") {
                 // flex highlight pen <n>
                 // flex highlight color <r> <g> <b>
@@ -840,6 +847,25 @@ bool flexMove(YWindowManager* manager, const string& label,
     // size deltas (label resolution, focused-frame fallback, layout
     // and outline refresh all live there)
     return flexResize(manager, label, 0, 0, dx, dy);
+}
+
+bool flexBind(YWindowManager* manager, const string& label) {
+    if (manager == nullptr)
+        return false;
+    int ws = manager->activeWorkspace();
+    FlexFrameSet* set = Tiling::instance().flex(ws);
+    if (set == nullptr)
+        return false;
+    FlexFrame* f = set->find(label);
+    if (f == nullptr)
+        return false;
+    YFrameWindow* focus = manager->getFocus();
+    if (focus == nullptr || !isFlexCandidate(focus))
+        return false;
+    focus->setFlexFrame(f); // rebind; group membership is not touched
+    flexApplyLayout(manager, ws);
+    flexFrameHighlight(manager, f->rect());
+    return true;
 }
 
 // ------------------------------------------------------------------

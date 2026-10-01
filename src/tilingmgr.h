@@ -192,6 +192,12 @@ bool flexResize(YWindowManager* manager, const std::string& label,
 bool flexMove(YWindowManager* manager, const std::string& label,
               int dx, int dy);
 
+//! `flex bind <label>`: bind the focused window to the frame, moving
+//! it there even if it already lives in another frame (its group
+//! membership is not touched). A label of "." or an empty label means
+//! the focused frame (a no-op).
+bool flexBind(YWindowManager* manager, const std::string& label);
+
 // --- flexible-frame groups (multiple frames arranged into named
 // --- groups; opening a group activates its most recently focused frame)
 

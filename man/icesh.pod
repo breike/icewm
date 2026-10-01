@@ -968,6 +968,13 @@ I<dy> pixels vertically, without changing its size. A label of C<.>
 resize>, the frame is not recreated: bound windows and group membership
 are preserved, and the focus outline follows the frame.
 
+=item B<flex bind> I<label>
+
+Bind the focused window to the flexible frame I<label>: the window is
+moved into that frame even if it already lived in another one. Its
+group membership, if any, is not touched. A label of C<.> (or an
+empty label) means the focused frame, and is a no-op.
+
 =item B<flex dump>
 
 Print all flexible frames of the active workspace, one per line, as

@@ -156,6 +156,7 @@ All commands take effect on the active workspace and are documented in
     icesh flex setlabel <label> <new>        # rename a frame
     icesh flex resize <label> <dw> <dh> [dx [dy]]  # grow/shrink (and shift) a frame; "." = focused
     icesh flex move <label> <dx> <dy>              # shift a frame without changing size; "." = focused
+    icesh flex bind <label>                        # move the focused window into this frame
     icesh flex dump                          # list frames as "label x y w h"
     icesh flex clear                         # remove all frames of this workspace
     icesh flex highlight pen <n>             # set focus-outline thickness, 0..255 (default 3)
@@ -184,6 +185,13 @@ frame, and the assigned `focus` outline follows the frame:
     icesh flex resize . -20 0    # shrink the focused frame by 20 px
     icesh flex resize A 0 0 10 10  # move frame A 10 px right and down
     icesh flex move A 10 10      # move frame A 10 px right and down (size unchanged)
+
+`flex bind` moves the focused window into another frame: it is rebound
+even if it already lived in a frame (its group membership is kept),
+and the layout is reapplied so the window snaps to the target frame's
+rectangle:
+
+    icesh flex focus A && icesh flex bind B   # move the window focused on A into B
 
 While a flexible frame is focused, a persistent outline is drawn around
 the frame rectangle so you can always see which frame is active. It
