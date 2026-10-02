@@ -630,6 +630,16 @@ void tilingHandleRequest(YWindowManager* manager, const char* request,
                     }
                 }
             }
+            else if (sub == "window") {
+                // flex window [next|prev] [label]: cycle the focus among
+                // the windows bound to one flexible frame. Direction
+                // defaults to "next"; tokens[2] is "1"/"0" from icesh.
+                if (tokens.size() > 2) {
+                    bool forward = (tokens[2] == "1");
+                    string label = tokens.size() > 3 ? tokens[3] : "";
+                    flexWindowFocus(manager, label, forward);
+                }
+            }
         }
     }
 }
@@ -1005,6 +1015,78 @@ bool flexGroupFocusAll(YWindowManager* manager, bool forward) {
     for (auto& kv : *set)
         labels.push_back(kv.first);
     return flexGroupFocusStep(manager, set, "", labels, forward);
+}
+
+//! helper for `flex window`: move the focus to the next (or, when
+//! 'forward' is false, the previous) window bound to a single flexible
+//! frame, wrapping around its client list. Works on the frame of the
+//! currently focused window when 'label' is empty.
+static bool flexWindowFocusStep(YWindowManager* manager, FlexFrameSet* set,
+                                const string& label, bool forward) {
+    if (manager == nullptr || set == nullptr)
+        return false;
+    // resolve the frame: explicit label, else the focused window's frame,
+    // else the set's last focused frame.
+    FlexFrame* f = nullptr;
+    if (!label.empty())
+        f = set->find(label);
+    else {
+        YFrameWindow* focus = manager->getFocus();
+        if (focus && focus->flexFrame() != nullptr)
+            f = focus->flexFrame();
+        else {
+            const string& fl = set->focusedLabel();
+            if (!fl.empty())
+                f = set->find(fl);
+        }
+    }
+    if (f == nullptr || f->isEmpty())
+        return false;
+
+    const vector<YFrameWindow*>& clients = f->clients();
+    YFrameWindow* cur = manager->getFocus();
+    // index of the currently focused window in this frame, if any
+    auto it = std::find(clients.begin(), clients.end(), cur);
+    // step from that window; when the focus is not in this frame, start
+    // from the frame's preferred (last visible) window. Wraps around.
+    int start = (it != clients.end()) ? static_cast<int>(it - clients.begin())
+                                      : static_cast<int>(clients.size());
+    if (start == static_cast<int>(clients.size()))
+        start = static_cast<int>(clients.size()) - 1;   // last = focusTarget end
+    YFrameWindow* next = nullptr;
+    for (size_t k = 1; k <= clients.size(); ++k) {
+        size_t idx = forward
+                   ? (static_cast<size_t>(start) + k) % clients.size()
+                   : (start + clients.size() - k) % clients.size();
+        YFrameWindow* w = clients[idx];
+        if (w == nullptr || w == cur)
+            continue;
+        next = w;
+        break;
+    }
+    if (next == nullptr)
+        return false;
+
+    set->setFocusedLabel(f->label());
+    set->noteFocusInGroups(f->label());
+    // raise the window and give it focus; a subsequent flexApplyLayout
+    // (below) also re-applies the frame's current rectangle, so the
+    // window matches a frame that was resized/moved since it was bound.
+    next->activate(true, true);
+    flexApplyLayout(manager, manager->activeWorkspace());
+    flexFrameHighlight(manager, f->rect());
+    return true;
+}
+
+bool flexWindowFocus(YWindowManager* manager, const string& label,
+                     bool forward) {
+    if (manager == nullptr)
+        return false;
+    int ws = manager->activeWorkspace();
+    FlexFrameSet* set = Tiling::instance().flex(ws);
+    if (set == nullptr)
+        return false;
+    return flexWindowFocusStep(manager, set, label, forward);
 }
 
 bool flexGroupRemove(YWindowManager* manager, const string& group) {

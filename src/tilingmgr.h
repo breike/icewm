@@ -218,6 +218,13 @@ bool flexGroupFocus(YWindowManager* manager, const std::string& group,
 //! the workspace.
 bool flexGroupFocusAll(YWindowManager* manager, bool forward = true);
 
+//! `flex window [next|prev] <label>`: activate the next (or previous)
+//! window bound to one flexible frame, wrapping around. Without a label
+//! the frame of the currently focused window is used. The activated
+//! window is raised, focused, and sized to the frame's current rect.
+bool flexWindowFocus(YWindowManager* manager, const std::string& label,
+                     bool forward = true);
+
 //! `flex group remove <name>`: delete the group (frames are kept).
 bool flexGroupRemove(YWindowManager* manager, const std::string& group);
 

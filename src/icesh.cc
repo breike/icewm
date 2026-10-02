@@ -3697,7 +3697,7 @@ bool IceSh::flexCommand()
         return false;
 
     if ( !haveArg()) {
-        msg(_("flex requires a subcommand (add, remove, focus, setlabel, bind, dump, clear, resize, move, group, highlight)."));
+        msg(_("flex requires a subcommand (add, remove, focus, setlabel, bind, dump, clear, resize, move, group, window, highlight)."));
         throw 1;
     }
 
@@ -3767,6 +3767,19 @@ bool IceSh::flexCommand()
         request += std::string(1, '\0') + std::string(hsub);
         ++argp;
         while (haveArg() && !isArg("-"))
+            request += std::string(1, '\0') + std::string(getArg());
+    }
+    else if (0 == strcmp(sub, "window")) {
+        // flex window [next|prev] [label]
+        ++argp;
+        bool forward = true;
+        if (haveArg() && (0 == strcmp(*argp, "next") || 0 == strcmp(*argp, "prev"))) {
+            forward = (0 == strcmp(*argp, "next"));
+            ++argp;
+        }
+        request += std::string(1, '\0') + "window";
+        request += std::string(1, '\0') + (forward ? "1" : "0");
+        if (haveArg() && !isArg("-"))
             request += std::string(1, '\0') + std::string(getArg());
     }
     else {

@@ -1030,6 +1030,13 @@ are kept.
 Print all groups of the active workspace, one per line, as
 I<name> I<labels...>.
 
+=item B<flex window> [B<next>|B<prev>] [I<label>]
+
+Move the input focus to the next (or, with B<prev>, the previous)
+window bound to one flexible frame, wrapping around. Without I<label>
+the frame of the currently focused window is used. The activated window
+is raised, focused, and sized to the frame's current rectangle.
+
 =item B<guievents>
 
 Monitor the B<ICEWM_GUI_EVENT> property and report all changes.
