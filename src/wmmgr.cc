@@ -3036,6 +3036,10 @@ void YWindowManager::readDesktopNames(bool init, bool net) {
     if (init) {
         if (haveNet && !strncmp(netList[0], "Workspace", 9))
             haveNet = false;
+        // WorkspaceGroups expands to "group|1"..."group|N" first,
+        // then explicit WorkspaceNames are appended in order.
+        for (int i = 0; i < configWorkspaceGroups.getCount(); ++i)
+            workspaces.add(configWorkspaceGroups[i]);
         for (int i = 0; i < configWorkspaces.getCount(); ++i)
             workspaces.add(configWorkspaces[i]);
         if (workspaces.count() < 1)

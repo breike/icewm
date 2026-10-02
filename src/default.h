@@ -571,6 +571,7 @@ cfoption icewm_preferences[] = {
     OKV("KeySysCollapseTaskBar",                gKeySysCollapseTaskBar,         "Toggles displaying the task bar."),
 
     OKF("WorkspaceNames",                       addWorkspace, "Add a workspace"),
+    OKF("WorkspaceGroups",                      addWorkspaceGroups, "Add a group of sub-workspaces"),
     OKF("KeyboardLayouts",                      addKeyboard, "Add a keyboard layout"),
     OSV("WinMenuItems",                         &winMenuItems,                  "The list of items to be supported in the menu window (rmsnxfhualytieckw)"),
 

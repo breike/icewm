@@ -20,10 +20,12 @@ public:
 // functions that are used in preferences options:
 
 void addWorkspace(const char *name, const char *value, bool append);
+void addWorkspaceGroups(const char *name, const char *value, bool append);
 void addKeyboard(const char *name, const char *value, bool append);
 void setLook(const char *name, const char *value, bool append);
 
 extern class YStringArray configWorkspaces;
+extern class YStringArray configWorkspaceGroups;
 extern class MStringArray configKeyboards;
 
 #endif

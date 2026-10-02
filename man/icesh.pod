@@ -765,6 +765,21 @@ Show the number and name of the current workspace.
 Change the current workspace to I<WORKSPACE>. Specify C<next> for the
 subsequent workspace or C<prev> for the preceding workspace.
 
+C<next-group> and C<prev-group> cycle to the next or previous
+sub-workspace of the group containing the current workspace, wrapping
+around at both ends.
+
+=item B<setWorkspaceGroup> I<GROUP> I<COUNT>
+
+Create (or shrink) the sub-workspaces B<GROUP>|C<1> through
+B<GROUP>|I<COUNT>, preserving the position and order of the group
+within the workspace list. Existing windows on a removed sub-workspace
+are moved to the previous one.
+
+=item B<getWorkspaceGroup> I<GROUP>
+
+Print how many sub-workspaces B<GROUP>|I<N> currently exist.
+
 =item B<workspaces> [I<COUNT>]
 
 Print the number of workspaces if I<COUNT> is not given,

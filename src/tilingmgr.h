@@ -142,6 +142,22 @@ std::string tilingDump(YWindowManager* manager);
 //! deserialize into the active workspace's tree and re-apply.
 bool tilingLoad(YWindowManager* manager, const std::string& layout);
 
+/*! Expand (or shrink) the sub-workspaces of one group to exactly
+ * `count` members: the workspace names `group|1`..`group|count` are
+ * generated server-side, preserving the flat order of the other
+ * workspaces. Returns false on failure.
+ */
+bool workspaceSetGroup(YWindowManager* manager, const std::string& group,
+                       int count);
+
+/*! Cycle the focus to the next (`forward`) or previous sub-workspace
+ * of the group `group`. When `group` is empty, the group of the
+ * currently active workspace is used. Wraps around at both ends of the
+ * group's list. Returns false if the current state has no group.
+ */
+bool workspaceGroupStep(YWindowManager* manager, const std::string& group,
+                        bool forward);
+
 /*! Handle an IPC request received via the _ICEWM_TILING property.
  * 'request' contains NUL-separated tokens, first the subcommand
  * ("split", "remove", "focus", "focuslabel", "setlabel", "dump",

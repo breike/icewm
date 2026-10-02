@@ -642,6 +642,27 @@ void tilingHandleRequest(YWindowManager* manager, const char* request,
             }
         }
     }
+    else if (cmd == "workspace-set-group") {
+        // workspace-set-group <group> <count>
+        // Generate (or shrink) the sub-workspaces `group|1..count` on
+        // the server side.
+        if (tokens.size() > 2) {
+            long n = atol(tokens[2].c_str());
+            if (n >= 1 && n <= NewMaxWorkspaces)
+                workspaceSetGroup(manager, tokens[1].c_str(), int(n));
+        }
+    }
+    else if (cmd == "workspace-group-step") {
+        // workspace-group-step <next|prev> [group]
+        // Cycle to the next/previous sub-workspace of a group, wrapping
+        // around at both ends. Group defaults to the group of the
+        // currently active workspace.
+        if (tokens.size() > 1) {
+            bool forward = (tokens[1] != "prev");
+            string group = tokens.size() > 2 ? tokens[2] : "";
+            workspaceGroupStep(manager, group, forward);
+        }
+    }
 }
 
 bool tilingLoad(YWindowManager* manager, const string& layout) {
@@ -662,6 +683,175 @@ bool tilingLoad(YWindowManager* manager, const string& layout) {
     }
     if (tw->enabled)
         tilingApplyLayout(manager, ws);
+    return true;
+}
+
+// ------------------------------------------------------------------
+// dynamic sub-workspaces (group|N)
+// ------------------------------------------------------------------
+
+/*! True when 'name' is "group|N" (N positive), i.e. a member of the
+ * sub-workspace group 'group'.
+ */
+static bool subWorkspaceOf(const std::string& name, const std::string& group) {
+    if (name.size() <= group.size() + 1)
+        return false;
+    if (name.compare(0, group.size(), group) != 0)
+        return false;
+    if (name[group.size()] != '|')
+        return false;
+    for (size_t i = group.size() + 1; i < name.size(); ++i) {
+        if (!isdigit((unsigned char)name[i]))
+            return false;
+    }
+    return true;
+}
+
+/*! Parse the N from a "group|N" workspace name; returns -1 if it does
+ * not look like one.
+ */
+static int subWorkspaceNumber(const std::string& name,
+                              const std::string& group) {
+    if (!subWorkspaceOf(name, group))
+        return -1;
+    return atoi(name.c_str() + group.size() + 1);
+}
+
+/*! Expand (or shrink) the sub-workspaces of one group to `count`
+ * members, keeping the flat order of all other workspaces. Existing
+ * windows on a removed sub-workspace are moved to its predecessor
+ * (through lessenWorkspaces which handles that for the tail), and the
+ * tail is dropped to match the shorter list.
+ */
+bool workspaceSetGroup(YWindowManager* manager, const std::string& group,
+                       int count) {
+    if (manager == nullptr || group.empty() || count < 1)
+        return false;
+
+    // Collect the currently-live workspace names.
+    std::vector<std::string> names;
+    for (int i = 0; i < workspaceCount; ++i)
+        names.push_back(workspaceNames[i]);
+
+    // The group keeps its position: the index of its first member.
+    size_t anchor = names.size();
+    for (size_t i = 0; i < names.size(); ++i) {
+        if (subWorkspaceOf(names[i], group)) { anchor = i; break; }
+    }
+
+    // Build the new flat list, preserving the order of every foreign
+    // workspace and dropping the group's old members.
+    std::vector<std::string> newNames;
+    newNames.reserve(names.size() + count);
+    for (size_t i = 0; i < anchor && i < names.size(); ++i)
+        newNames.push_back(names[i]);
+    for (int k = 1; k <= count; ++k) {
+        char buf[16];
+        snprintf(buf, sizeof buf, "%d", k);
+        newNames.push_back(group + "|" + buf);
+    }
+    for (size_t i = anchor; i < names.size(); ++i) {
+        if (!subWorkspaceOf(names[i], group))
+            newNames.push_back(names[i]);
+    }
+
+    const size_t target = newNames.size();
+    if (target > size_t(workspaceCount) &&
+        target <= size_t(NewMaxWorkspaces))
+    {
+        manager->extendWorkspaces(int(target));
+    }
+
+    // Apply the new names to the existing (at most `target`) entries.
+    const int have = workspaceCount;
+    const int to = min<int>(int(target), have);
+    for (int i = 0; i < to; ++i) {
+        if (strcmp(workspaceNames[i], newNames[i].c_str())) {
+            char* name = newstr(newNames[i].c_str());
+            swap(name, *workspaces[i]);
+            delete[] name;
+        }
+    }
+    // Shrink from the tail; the workspaces that moved to lower indices
+    // already carry their new names, so the tail holds only duplicates
+    // of the removed group members.
+    if (int(target) < have)
+        manager->lessenWorkspaces(int(target));
+
+    // keep the per-workspace tiling registry in sync
+    for (int i = 0; i < workspaceCount; ++i)
+        Tiling::instance().ensure(i);
+
+    // publish the new names as _NET_DESKTOP_NAMES so icesh and other
+    // clients see them; updateTaskBarNames relabels the task bar.
+    manager->setDesktopNames(workspaceCount);
+    manager->updateTaskBarNames();
+    return true;
+}
+
+/*! Determine the group ("prefix" before '|') of a workspace name, or
+ * empty if the name has no '|'.
+ */
+static std::string groupOf(const std::string& name) {
+    size_t p = name.find('|');
+    if (p == std::string::npos || p == 0)
+        return "";
+    return name.substr(0, p);
+}
+
+/*! Cycle the focus to the next (`forward`) or previous sub-workspace of
+ * the group `group` (or, when empty, the group of the currently active
+ * workspace). Wraps around at both ends. Returns false if the current
+ * workspace has no group or the group has no members.
+ */
+bool workspaceGroupStep(YWindowManager* manager, const std::string& group,
+                        bool forward) {
+    if (manager == nullptr)
+        return false;
+
+    // Determine the group to cycle in.
+    std::string grp = group;
+    int cur = manager->activeWorkspace();
+    if (grp.empty()) {
+        if (cur < 0 || cur >= workspaceCount)
+            return false;
+        grp = groupOf(workspaceNames[cur]);
+        if (grp.empty())
+            return false;
+    }
+    if (grp.empty())
+        return false;
+
+    // Enumerate the members of the group (in current flat order).
+    std::vector<int> members;
+    for (int i = 0; i < workspaceCount; ++i) {
+        int n = subWorkspaceNumber(workspaceNames[i], grp);
+        if (n >= 1)
+            members.push_back(i);
+    }
+    if (members.empty())
+        return false;
+
+    const int curNum = (grp == groupOf(cur < workspaceCount ? workspaceNames[cur] : ""))
+                     ? subWorkspaceNumber(workspaceNames[cur], grp) : -1;
+    int idx = -1;
+    if (curNum >= 1) {
+        for (size_t i = 0; i < members.size(); ++i) {
+            int n = subWorkspaceNumber(workspaceNames[members[i]], grp);
+            if (n == curNum) { idx = int(i); break; }
+        }
+    }
+    int next;
+    if (idx < 0) {
+        next = forward ? members.front() : members.back();
+    }
+    else {
+        size_t ni = forward
+                  ? (size_t(idx) + 1) % members.size()
+                  : (size_t(idx) + members.size() - 1) % members.size();
+        next = members[ni];
+    }
+    manager->activateWorkspace(next);
     return true;
 }
 

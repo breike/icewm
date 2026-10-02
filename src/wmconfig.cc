@@ -19,6 +19,7 @@
 #include "intl.h"
 
 YStringArray configWorkspaces;
+YStringArray configWorkspaceGroups;
 MStringArray configKeyboards;
 
 void WMConfig::loadConfiguration(const char* fileName) {
@@ -59,6 +60,57 @@ void addWorkspace(const char *, const char *value, bool append) {
         configWorkspaces.clear();
     }
     configWorkspaces += value;
+}
+
+/*! Parse a `WorkspaceGroups="group:count, group:count, ..."` value into
+ * the `configWorkspaceGroups` list, as `group|N` expanded names. If the
+ * option is given more than once, the non-append form clears the list.
+ */
+void addWorkspaceGroups(const char *, const char *value, bool append) {
+    if (!append) {
+        configWorkspaceGroups.clear();
+    }
+    if (value == nullptr || value[0] == 0)
+        return;
+
+    // split on commas
+    const char* st = value;
+    while (st != nullptr && *st) {
+        const char* comma = strchr(st, ',');
+        size_t len = (comma != nullptr) ? size_t(comma - st) : strlen(st);
+        // trim whitespace
+        size_t a = 0;
+        while (a < len && (st[a] == ' ' || st[a] == '\t')) ++a;
+        size_t b = len;
+        while (b > a && (st[b - 1] == ' ' || st[b - 1] == '\t')) --b;
+
+        if (a < b) {
+            // split on ':' -> group : count
+            const char* colon = nullptr;
+            for (size_t i = a; i < b; ++i) {
+                if (st[i] == ':') { colon = st + i; break; }
+            }
+            if (colon != nullptr) {
+                size_t glen = size_t(colon - st) - a;
+                if (glen > 0) {
+                    mstring group(st + a, glen);
+                    mstring cstr(colon + 1, b - size_t(colon - st) - 1);
+                    long n = atol(cstr.c_str());
+                    if (n < 1) n = 1;
+                    if (n > 1000) n = 1000;
+                    // expand to "group|1" .. "group|N"
+                    for (long k = 1; k <= n; ++k) {
+                        char buf[16];
+                        snprintf(buf, sizeof buf, "%ld", k);
+                        mstring name(group, "|", buf);
+                        configWorkspaceGroups += name.c_str();
+                    }
+                }
+            }
+        }
+        if (comma != nullptr) st = comma + 1;
+        else break;
+    }
 }
 
 void addKeyboard(const char *, const char *value, bool append) {

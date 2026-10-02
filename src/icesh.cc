@@ -1764,6 +1764,9 @@ private:
     bool icewmAction();
     bool tilingCommand();
     bool flexCommand();
+    bool sendTilingRequest(const std::string& request);
+    bool setWorkspaceGroup();
+    bool getWorkspaceGroup();
     bool conditional();
     bool evaluating();
     void unexpected();
@@ -3161,12 +3164,107 @@ bool IceSh::change()
         return false;
 
     char* name = getArg();
+    // sub-workspace cycling within a group
+    if (0 == strcmp(name, "next-group") || 0 == strcmp(name, "prev-group")) {
+        bool forward = (0 == strcmp(name, "next-group"));
+        std::string request = "workspace-group-step";
+        request += std::string(1, '\0') + std::string(forward ? "next" : "prev");
+        if (haveArg() && !isArg("-"))
+            request += std::string(1, '\0') + std::string(getArg());
+        return sendTilingRequest(request);
+    }
+
     long workspace;
     if ( ! WorkspaceInfo().parseWorkspace(name, &workspace))
         throw 1;
 
     changeWorkspace(workspace);
 
+    return true;
+}
+
+/*! Write a NUL-separated IPC request to _ICEWM_TILING and notify IceWM.
+ * The payload is the same tokens tilingHandleRequest() on the server
+ * dispatches. Returns once IceWM has consumed the request.
+ */
+bool IceSh::sendTilingRequest(const std::string& request)
+{
+    XChangeProperty(display, root, ATOM_ICE_TILING, ATOM_ICE_TILING,
+                    8, PropModeReplace,
+                    reinterpret_cast<const unsigned char*>(request.data()),
+                    request.size());
+    send(ATOM_ICE_ACTION, root, CurrentTime, ICEWM_ACTION_TILING);
+    XSync(display, False);
+    // wait until IceWM consumed the request (serializes consecutive
+    // commands so a fast script cannot overwrite a pending one)
+    {
+        Atom type = None;
+        int fmt = 0;
+        unsigned long nitems = 0, after = 0;
+        unsigned char* data = nullptr;
+        for (int attempt = 0; attempt < 500; ++attempt) {
+            XSync(display, False);
+            if (Success == XGetWindowProperty(display, root,
+                                              ATOM_ICE_TILING, 0, 8192, False,
+                                              AnyPropertyType, &type, &fmt,
+                                              &nitems, &after, &data)) {
+                if (data)
+                    XFree(data);
+                if (nitems == 0)  // consumed
+                    break;
+            }
+            usleep(2 * 1000);
+        }
+    }
+    return true;
+}
+
+/*! Handle `icesh setWorkspaceGroup <group> <count>`: ask the IceWM
+ * server to generate the sub-workspaces `group|1`..`group|count`.
+ */
+bool IceSh::setWorkspaceGroup()
+{
+    if ( !isAction("setWorkspaceGroup", 2))
+        return false;
+
+    char* group = getArg();
+    char* cnt = getArg();
+    long n;
+    if (group == nullptr || *group == 0 || !tolong(cnt, n) || n < 1) {
+        msg(_("setWorkspaceGroup requires GROUP and a positive COUNT."));
+        throw 1;
+    }
+    std::string request = "workspace-set-group";
+    request += std::string(1, '\0') + std::string(group);
+    request += std::string(1, '\0') + std::string(cnt);
+    return sendTilingRequest(request);
+}
+
+/*! Handle `icesh getWorkspaceGroup <group>`: print how many sub-
+ * workspaces `group|N` currently exist.
+ */
+bool IceSh::getWorkspaceGroup()
+{
+    if ( !isAction("getWorkspaceGroup", 1))
+        return false;
+
+    char* group = getArg();
+    if (group == nullptr || *group == 0) {
+        msg(_("getWorkspaceGroup requires GROUP."));
+        throw 1;
+    }
+    size_t glen = strlen(group);
+    YTextProperty names(root, ATOM_NET_DESKTOP_NAMES, YEmby);
+    long count = 0;
+    if (names) {
+        for (int i = 0; i < names.count(); ++i) {
+            const char* nm = names[i];
+            if (nm != nullptr &&
+                strncmp(nm, group, glen) == 0 && nm[glen] == '|')
+                ++count;
+        }
+    }
+    printf("%ld\n", count);
     return true;
 }
 
@@ -3521,6 +3619,8 @@ bool IceSh::icewmAction()
         || getWorkspaceName()
         || listWorkspaces()
         || addWorkspace()
+        || setWorkspaceGroup()
+        || getWorkspaceGroup()
         || listScreens()
         || listWindows()
         || listClients()
