@@ -780,6 +780,24 @@ are moved to the previous one.
 
 Print how many sub-workspaces B<GROUP>|I<N> currently exist.
 
+=item B<smove> [I<LABEL>] I<GROUP> I<TARGET>
+
+Move the flexible frame I<LABEL> (or, without a label, the frame of the
+focused window) of the current workspace to the sub-workspace
+B<GROUP>|I<TARGET>. All windows bound to the frame move with it, and
+the frame's rectangle is recreated at the target (the windows join the
+existing frame of the same label there if it already exists). The target
+sub-workspace is created automatically when it does not exist yet, and
+it becomes the current workspace afterwards.
+
+=item B<smove> B<next-group>|B<prev-group> [I<LABEL>]
+
+Cycle to the next or previous sub-workspace of the group, wrapping
+around at both ends, moving the flexible frame I<LABEL> (or, without a
+label, the frame of the focused window) along instead of just switching
+the focus like B<goto>. The group is that of the workspace the frame
+currently lives on.
+
 =item B<workspaces> [I<COUNT>]
 
 Print the number of workspaces if I<COUNT> is not given,

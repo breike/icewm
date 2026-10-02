@@ -663,6 +663,34 @@ void tilingHandleRequest(YWindowManager* manager, const char* request,
             workspaceGroupStep(manager, group, forward);
         }
     }
+    else if (cmd == "workspace-move-frame") {
+        // workspace-move-frame [label] <group> <target>
+        // Move the flexible frame (or the focused window's frame) of
+        // the active workspace to sub-workspace `group|target`.
+        if (tokens.size() < 3)
+            return;
+        if (tokens.size() >= 4) {
+            // label <group> <target>
+            long t = atol(tokens[3].c_str());
+            if (t >= 1 && t <= NewMaxWorkspaces)
+                workspaceMoveFrame(manager, tokens[1], tokens[2], int(t));
+        } else {
+            // <group> <target> (no label)
+            long t = atol(tokens[2].c_str());
+            if (t >= 1 && t <= NewMaxWorkspaces)
+                workspaceMoveFrame(manager, "", tokens[1], int(t));
+        }
+    }
+    else if (cmd == "workspace-move-frame-step") {
+        // workspace-move-frame-step <next|prev> [label]
+        // Cycle the flexible frame (or the focused window's frame) to
+        // the next/previous sub-workspace of its group, wrapping around.
+        if (tokens.size() > 1) {
+            bool forward = (tokens[1] != "prev");
+            string label = tokens.size() > 2 ? tokens[2] : "";
+            workspaceMoveFrameStep(manager, label, forward);
+        }
+    }
 }
 
 bool tilingLoad(YWindowManager* manager, const string& layout) {
@@ -853,6 +881,188 @@ bool workspaceGroupStep(YWindowManager* manager, const std::string& group,
     }
     manager->activateWorkspace(next);
     return true;
+}
+
+/*! Move the active workspace's flexible frame `label` (or the focused
+ * window's frame when `label` is empty) to the sub-workspace
+ * `group|target` of `group`. The frame's windows move along; the
+ * frame's rectangle is recreated at the target (or the windows join the
+ * existing frame of the same label there). Activates the target
+ * workspace at the end.
+ */
+bool workspaceMoveFrame(YWindowManager* manager, const std::string& label,
+                        const std::string& group, int target) {
+    if (manager == nullptr || group.empty() || target < 1)
+        return false;
+
+    // Resolve the frame to move. With an explicit label, look on every
+    // workspace (the frame may live on an inactive sub-workspace, e.g.
+    // right after a middle-click activate switched the manager's active
+    // workspace to where the focused window lives). Otherwise use the
+    // frame of the focused window.
+    FlexFrame* frame = nullptr;
+    int cur = -1;
+    if (!label.empty() && label != ".") {
+        for (int i = 0; i < workspaceCount; ++i) {
+            FlexFrameSet* set = Tiling::instance().flex(i);
+            if (set == nullptr)
+                continue;
+            frame = set->find(label);
+            if (frame != nullptr) {
+                cur = i;
+                break;
+            }
+        }
+    } else {
+        YFrameWindow* focus = manager->getFocus();
+        if (focus != nullptr)
+            frame = focus->flexFrame();
+        if (frame != nullptr)
+            cur = manager->activeWorkspace();
+    }
+    if (frame == nullptr)
+        return false;
+
+    const string labelName = frame->label();
+    const YRect rect = frame->rect();
+    FlexFrameSet* set = Tiling::instance().flex(cur);
+
+    // Find the flat index of the target sub-workspace. When the target
+    // does not exist yet, create it with the same "group|N" naming as
+    // WorkspaceGroups/setWorkspaceGroup (appended at the tail).
+    int targetWs = -1;
+    for (int i = 0; i < workspaceCount; ++i) {
+        if (subWorkspaceOf(workspaceNames[i], group) &&
+            subWorkspaceNumber(workspaceNames[i], group) == target)
+        {
+            targetWs = i;
+            break;
+        }
+    }
+    if (targetWs < 0) {
+        char buf[16];
+        snprintf(buf, sizeof buf, "%d", target);
+        manager->extendWorkspaces(workspaceCount + 1);
+        const int idx = workspaceCount - 1;
+        char* name = newstr((group + "|" + buf).c_str());
+        swap(name, *workspaces[idx]);   // the last slot is named `name`
+        delete[] name;
+        Tiling::instance().ensure(idx);
+        manager->setDesktopNames(workspaceCount);
+        manager->updateTaskBarNames();
+        targetWs = idx;
+    }
+
+    // A flexible frame without windows is meaningless: moving it would
+    // only leave an empty rectangle on the target while the user's
+    // windows stay put. In that case just drop the empty source frame.
+    vector<YFrameWindow*> moving(frame->clients());
+    if (moving.empty()) {
+        set->remove(labelName);
+        return true;
+    }
+
+    // Detach the frame's clients from the source workspace's set.
+    for (YFrameWindow* w : moving)
+        if (w)
+            w->setFlexFrame(nullptr);
+    // The entire frame moves; drop the source copy (the windows get
+    // re-attached below). Removing also detaches any remaining clients
+    // (there should be none left) and updates the set bookkeeping.
+    set->remove(labelName);
+
+    // Move the windows to the target workspace and re-attach them to
+    // the frame there (creating it with the carried-over rect when the
+    // target has no frame of that label yet).
+    FlexFrameSet* tset = Tiling::instance().ensureFlex(targetWs);
+    FlexFrame* tf = tset->find(labelName);
+    if (tf == nullptr)
+        tf = tset->add(labelName, rect);
+    else
+        tf->setRect(rect);   // update in case it was resized meanwhile
+    for (YFrameWindow* w : moving) {
+        if (w == nullptr)
+            continue;
+        w->setFlexFrame(tf);
+        if (w->getWorkspace() != targetWs)
+            w->setWorkspace(targetWs);
+    }
+    tset->setFocusedLabel(labelName);
+    flexApplyLayout(manager, targetWs);
+
+    manager->activateWorkspace(targetWs);
+    return true;
+}
+
+/*! Move the flexible frame `label` of the active workspace (or the frame
+ * of the focused window when `label` is empty) to the next (`forward`)
+ * sub-workspace of its group, wrapping around at both ends — like
+ * workspaceGroupStep cycles the focus, but the frame moves along. The
+ * group is derived from the workspace the frame currently lives on (which
+ * may be an inactive sub-workspace when an explicit label was given).
+ */
+bool workspaceMoveFrameStep(YWindowManager* manager,
+                            const std::string& label, bool forward) {
+    if (manager == nullptr)
+        return false;
+
+    // Resolve the frame the same way workspaceMoveFrame does, then derive
+    // the group from the workspace it lives on.
+    FlexFrame* frame = nullptr;
+    int cur = -1;
+    if (!label.empty() && label != ".") {
+        for (int i = 0; i < workspaceCount; ++i) {
+            FlexFrameSet* set = Tiling::instance().flex(i);
+            if (set == nullptr)
+                continue;
+            frame = set->find(label);
+            if (frame != nullptr) {
+                cur = i;
+                break;
+            }
+        }
+    } else {
+        YFrameWindow* focus = manager->getFocus();
+        if (focus != nullptr)
+            frame = focus->flexFrame();
+        if (frame != nullptr)
+            cur = manager->activeWorkspace();
+    }
+    if (frame == nullptr)
+        return false;
+
+    // The group of the frame's current (flat) workspace.
+    if (cur < 0 || cur >= workspaceCount)
+        return false;
+    const string grp = groupOf(workspaceNames[cur]);
+    if (grp.empty())
+        return false;
+
+    // Enumerate the members of the group, in current flat order.
+    vector<int> members;
+    for (int i = 0; i < workspaceCount; ++i) {
+        if (subWorkspaceNumber(workspaceNames[i], grp) >= 1)
+            members.push_back(i);
+    }
+    if (members.empty())
+        return false;
+
+    // The position of the frame's workspace inside the group's list.
+    size_t idx = members.size();
+    for (size_t i = 0; i < members.size(); ++i) {
+        if (members[i] == cur) { idx = i; break; }
+    }
+    if (idx >= members.size())
+        return false;   // workspace not part of the group after all
+
+    const int targetFlat = members[forward
+            ? (idx + 1) % members.size()
+            : (idx + members.size() - 1) % members.size()];
+    const int target = subWorkspaceNumber(workspaceNames[targetFlat], grp);
+    if (target < 1)
+        return false;
+
+    return workspaceMoveFrame(manager, label, grp, target);
 }
 
 // ------------------------------------------------------------------

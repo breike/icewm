@@ -1767,6 +1767,7 @@ private:
     bool sendTilingRequest(const std::string& request);
     bool setWorkspaceGroup();
     bool getWorkspaceGroup();
+    bool moveFrame();   // `icesh smove [label] <group> <target>`
     bool conditional();
     bool evaluating();
     void unexpected();
@@ -3268,6 +3269,69 @@ bool IceSh::getWorkspaceGroup()
     return true;
 }
 
+/*! Handle `icesh smove [label] <group> <target>`: move the flexible
+ * frame `label` (or the focused window's frame) of the active
+ * workspace to sub-workspace `group|target`, carrying the frame's
+ * windows and rectangle with it.
+ */
+bool IceSh::moveFrame()
+{
+    if ( !isAction("smove", 1))
+        return false;
+
+    std::string label;
+    char* group = nullptr;
+    char* target = nullptr;
+    if (haveArg() && !isArg("-")) {
+        char* first = getArg();
+        // sub-workspace cycling within a group (moves the frame rather
+        // than just the focus): smove next-group [label]
+        if (0 == strcmp(first, "next-group") || 0 == strcmp(first, "prev-group")) {
+            bool forward = (0 == strcmp(first, "next-group"));
+            std::string request = "workspace-move-frame-step";
+            request += std::string(1, '\0') + std::string(forward ? "next" : "prev");
+            if (haveArg() && !isArg("-"))
+                request += std::string(1, '\0') + std::string(getArg());
+            return sendTilingRequest(request);
+        }
+        // could be a label or the group; disambiguate: smove <group>
+        // <target> when exactly two args remain, smove <label> <group>
+        // <target> when three.
+        if (haveArg() && !isArg("-")) {
+            char* second = getArg();
+            if (haveArg() && !isArg("-")) {
+                label = first;
+                group = second;
+                target = getArg();
+            } else {
+                group = first;
+                target = second;
+            }
+        } else {
+            msg(_("smove requires [label] GROUP TARGET."));
+            throw 1;
+        }
+    } else {
+        msg(_("smove requires [label] GROUP TARGET."));
+        throw 1;
+    }
+
+    long t;
+    if (group == nullptr || *group == 0 || target == nullptr ||
+        !tolong(target, t) || t < 1)
+    {
+        msg(_("smove requires a GROUP and a positive TARGET."));
+        throw 1;
+    }
+
+    std::string request = "workspace-move-frame";
+    if ( !label.empty())
+        request += std::string(1, '\0') + label;
+    request += std::string(1, '\0') + std::string(group);
+    request += std::string(1, '\0') + std::string(target);
+    return sendTilingRequest(request);
+}
+
 bool IceSh::sync()
 {
     if ( !isAction("sync", 0))
@@ -3621,6 +3685,7 @@ bool IceSh::icewmAction()
         || addWorkspace()
         || setWorkspaceGroup()
         || getWorkspaceGroup()
+        || moveFrame()
         || listScreens()
         || listWindows()
         || listClients()

@@ -158,6 +158,28 @@ bool workspaceSetGroup(YWindowManager* manager, const std::string& group,
 bool workspaceGroupStep(YWindowManager* manager, const std::string& group,
                         bool forward);
 
+/*! Move the flexible frame `label` of the active workspace to the
+ * sub-workspace `group|target` of the group `group`. All windows bound
+ * to the frame move with it; the frame's rectangle is carried over and
+ * reused on the target sub-workspace (the frame is created there if it
+ * does not exist, otherwise the windows join the existing frame of the
+ * same label). When `label` is empty, the frame of the focused window
+ * is moved. Actives the target workspace afterwards.
+ */
+bool workspaceMoveFrame(YWindowManager* manager, const std::string& label,
+                        const std::string& group, int target);
+
+/*! Move the flexible frame `label` of the active workspace (or the frame
+ * of the focused window when `label` is empty) to the next (`forward`)
+ * sub-workspace of its group, wrapping around at both ends of the group's
+ * list — like workspaceGroupStep for focus, but moving the frame along.
+ * The group is derived from the workspace the frame currently lives on.
+ * Returns false if the frame cannot be resolved or its workspace has no
+ * group.
+ */
+bool workspaceMoveFrameStep(YWindowManager* manager,
+                            const std::string& label, bool forward);
+
 /*! Handle an IPC request received via the _ICEWM_TILING property.
  * 'request' contains NUL-separated tokens, first the subcommand
  * ("split", "remove", "focus", "focuslabel", "setlabel", "dump",
