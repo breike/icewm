@@ -450,6 +450,12 @@ static void flexClampToWorkArea(YWindowManager* manager, YRect& geo) {
 }
 
 void FlexHighlight::show(YWindowManager* manager, const YRect& rect) {
+    // fast path: no frame to outline and the overlay does not exist yet.
+    // This is the normal case on every focus change while the user has
+    // no flexible frames, and it must not touch X (no window creation,
+    // no shape/geometry/paint round-trips).
+    if (fWin == nullptr && !rect.nonempty())
+        return;
     const int pen = flexHighlightPen();
     if (fWin == nullptr)
         fWin = new FlexHighlightWindow(rect);
@@ -461,10 +467,12 @@ void FlexHighlight::show(YWindowManager* manager, const YRect& rect) {
         // away even without an event.
         fRect = YRect();
         fGeo = YRect();
-        fWin->layoutShape();
-        fWin->setGeometry(YRect(0, 0, 0, 0));
-        fWin->hide();
-        fWin->repaint();
+        if (fWin->visible() || fWin->width() != 0 || fWin->height() != 0) {
+            fWin->layoutShape();
+            fWin->setGeometry(YRect(0, 0, 0, 0));
+            fWin->hide();
+            fWin->repaint();
+        }
         return;
     }
     // the overlay rectangle depends on the pen: when only the pen
@@ -487,12 +495,14 @@ void FlexHighlight::show(YWindowManager* manager, const YRect& rect) {
         fWin->layoutShape();
         fWin->show();
         fWin->raise();
-    } else {
-        fWin->fFrameRect = rect;
+        // Expose events are not delivered for plain YWindows
+        // (handleExpose is a no-op), so paint the outline explicitly.
+        fWin->paintExpose(0, 0, fWin->width(), fWin->height());
     }
-    // Expose events are not delivered for plain YWindows (handleExpose
-    // is a no-op), so paint the outline explicitly.
-    fWin->paintExpose(0, 0, fWin->width(), fWin->height());
+    // else: same geometry, still visible — nothing to do. The outline
+    // already shows the right rectangle (fFrameRect is unchanged), so
+    // a redundant repaint on every focus change inside one frame is
+    // avoided.
 }
 
 void FlexHighlight::redraw() {
