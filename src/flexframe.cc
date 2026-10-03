@@ -484,17 +484,18 @@ static void flexClampToWorkArea(YWindowManager* manager, YRect& geo) {
         My = xapp->displayHeight();
     }
     // Keep the overlay inside the visible area (the screen or the work
-    // area, whichever the manager reports): a negative origin would put
-    // the (transparent) margin band beyond the display, and a too-large
-    // window would extend past it.
-    if (geo.x() < mx)
-        geo.xx = mx + 1;
-    if (geo.y() < my)
-        geo.yy = my + 1;
+    // area, whichever the manager reports): a too-large window may not
+    // extend past the display. The origin is left alone: a frame sitting
+    // within one margin of the edge will simply have part of its outline
+    // clipped at the screen border (the paint stroke still lands on the
+    // visible pixels), which is far better than shifting the whole
+    // outline away from the frame, as an arbitrary +1 push would.
+    // Note: the comment about negative origins painting black applied to
+    // the pre-transparent era; the overlay is parent-relative now.
     if (int(geo.right()) > Mx)
-        geo.ww = unsigned(Mx - geo.x());
+        geo.ww = unsigned(std::max(1, Mx - geo.x()));
     if (int(geo.bottom()) > My)
-        geo.hh = unsigned(My - geo.y());
+        geo.hh = unsigned(std::max(1, My - geo.y()));
 }
 
 void FlexHighlight::show(YWindowManager* manager, const YRect& rect) {
@@ -505,8 +506,9 @@ void FlexHighlight::show(YWindowManager* manager, const YRect& rect) {
     if (fWin == nullptr && !rect.nonempty())
         return;
     const int pen = flexHighlightPen();
+    YRect frameRect = rect;   // mutable copy: the clamp may shift it
     if (fWin == nullptr)
-        fWin = new FlexHighlightWindow(rect);
+        fWin = new FlexHighlightWindow(frameRect);
     if (!rect.nonempty()) {
         // no frame to outline: shrink to zero, empty the shape (so the
         // window becomes nonexistent on screen) and hide. setGeometry
@@ -526,17 +528,15 @@ void FlexHighlight::show(YWindowManager* manager, const YRect& rect) {
     // the overlay rectangle depends on the pen: when only the pen
     // changed (same focused frame), the geometry still has to be
     // recomputed so a thicker outline is not clipped
-    YRect geo = flexHighlightGeo(rect, pen);
-    // clamp to the work area: with the overlay transparent now, an
-    // origin beyond the screen edge would show nothing but still
-    // mis-align the outline (paint draws at pen/2 from the edge).
-    // Clamping keeps the overlay fully on-screen, and paint() draws
-    // the strokes that land on the visible area.
+    YRect geo = flexHighlightGeo(frameRect, pen);
+    // clamp the overlay size to the work area; the origin is untouched
+    // (see flexClampToWorkArea) so frames near the screen edge keep
+    // their outline aligned with the frame
     flexClampToWorkArea(manager, geo);
-    fRect = rect;
+    fRect = frameRect;
     if (geo != fGeo || !fWin->visible()) {
         fGeo = geo;
-        fWin->fFrameRect = rect;
+        fWin->fFrameRect = frameRect;
         fWin->setGeometry(geo);
         // map FIRST, then raise: raising an unmapped window is a no-op
         // and a freshly mapped window lands at the bottom of the stack
