@@ -8,6 +8,8 @@ CornerSizeX=0
 CornerSizeY=0
 FlexHighlightPen=2
 FlexHighlightColor="rgb:FF/80/00"
+DesktopBackgroundImage="kyoko.png"
+DesktopBackgroundScaled=1
 DlgBorderSizeX=0
 DlgBorderSizeY=0
 
