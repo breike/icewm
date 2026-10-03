@@ -5,7 +5,7 @@ PROJECT(ICEWM CXX)
 # Which themes to install in alphabetical order
 #
 set(themesList CrystalBlue Helix Infadel2 NanoBlue
-    default icedesert metal2 motif win95)
+    breike default icedesert metal2 motif win95)
 
 foreach(_src keys menu programs toolbar winoptions IceWM.jpg)
     set(_pre "${CMAKE_CURRENT_SOURCE_DIR}/${_src}.in")
