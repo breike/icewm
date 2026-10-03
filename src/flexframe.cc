@@ -376,12 +376,15 @@ FlexHighlightWindow::FlexHighlightWindow(const YRect& rect) : YWindow(nullptr) {
 void FlexHighlightWindow::paint(Graphics& g, const YRect& /*r*/) {
     const int pen = flexHighlightPen();
     const YColor col = flexHighlightColor();
-    // outline the frame, drawn slightly inside the overlay so a thick
-    // pen stays inside and lines are not clipped
+    // Outline the frame, drawn one pixel inside its edge so a pen
+    // larger than 1 is fully on-screen: the line path lies on the pixel
+    // grid [1..w-2] and its pen-width both halves stay within the
+    // overlay window (which has extra margin, see flexHighlightGeo).
+    const int w = int(fFrameRect.width());
+    const int h = int(fFrameRect.height());
     g.setColor(col);
     g.setLineWidth(pen);
-    g.drawRect(pen / 2, pen / 2, fFrameRect.width() - pen,
-               fFrameRect.height() - pen);
+    g.drawRect(1, 1, w - 2, h - 2);
 }
 
 void FlexHighlightWindow::layoutShape() {
@@ -395,12 +398,16 @@ void FlexHighlightWindow::layoutShape() {
     // and the window's (black, parent-relative) background would still
     // paint the interior over the windows beneath.
     const int pen = flexHighlightPen();
-    const int L = pen / 2;                              // stroke inset
+    // the drawn stroke runs a pixel inside the frame edge (paint() uses
+    // offset 1) and for pen > 1 its width straddles the path, extending
+    // one pixel outward past the origin; the ring therefore starts at
+    // -1 so that half a pixel beyond 0 is still inside the shape
+    const int L = -1;                                   // stroke inset
     const int w = int(fFrameRect.width());
     const int h = int(fFrameRect.height());
     const int t = pen + 2;                              // stroke thickness (+2 fudge)
-    const int R = L + w - t;
-    const int B = L + h - t;
+    const int R = w - pen / 2 - 1;
+    const int B = h - pen / 2 - 1;
     XRectangle ring[4] = {
         { short(L), short(L),   static_cast<unsigned short>(w), static_cast<unsigned short>(t) }, // top
         { short(L), short(B),   static_cast<unsigned short>(w), static_cast<unsigned short>(t) }, // bottom
@@ -453,6 +460,10 @@ static YRect flexHighlightGeo(const YRect& rect, int pen) {
     // border) never overlaps the outline even at pen 1
     if (m < 8)
         m = 8;
+    // the outline is drawn at offset 1 in the overlay, one pixel inside
+    // the frame edge; add one extra pixel of margin so that a >1px pen
+    // straddling the path is not clipped by the window edge
+    m += 1;
     return YRect(rect.x() - m, rect.y() - m,
                  rect.width() + 2 * m, rect.height() + 2 * m);
 }
