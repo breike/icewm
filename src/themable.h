@@ -149,6 +149,8 @@ XSV(const char *, clrNetSend,                   "rgb:FF/FF/00")
 XSV(const char *, clrNetReceive,                "rgb:FF/00/FF")
 XSV(const char *, clrNetIdle,                   "rgb:00/00/00")
 XSV(const char *, gradients,                    0)
+XIV(unsigned, flexHighlightPenWidth,            3)
+XSV(const char *, flexHighlightColorStr,        "rgb:30/FF/60")
 
 #if defined(CFGDEF)
 
@@ -324,6 +326,10 @@ cfoption icewm_themable_preferences[] = {
     OSV("ColorNetIdle",                         &clrNetIdle,                    "Idle (non) load on the network monitor, leave empty to force transparency"),
 
     OSV("Gradients",                            &gradients,                     "List of gradient pixmaps in the current theme"),
+
+    OIV("FlexHighlightPen",                     &flexHighlightPenWidth, 0, 255, "Thickness in pixels of the focused flexible frame outline"),
+    OSV("FlexHighlightColor",                   &flexHighlightColorStr,         "Color of the focused flexible frame outline (rgb:RR/GG/BB)"),
+
     OKF("Look", setLook, "The theme look."),
     OK0()
 };

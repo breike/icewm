@@ -556,9 +556,11 @@ static FlexHighlight& flexHighlight() {
     return hl;
 }
 
-/*! Defaults and current IPC-adjustable outline settings. */
-static unsigned int sPen = 3;
-static int sColorR = 0x30, sColorG = 0xFF, sColorB = 0x60;
+/*! Defaults and current IPC-adjustable outline settings. The theme
+ * breadcrumb (FlexHighlightPen/FlexHighlightColor) is applied at
+ * startup; these values are the fallback when no theme sets them. */
+static unsigned int sPen = 1;
+static int sColorR = 0xFF, sColorG = 0x80, sColorB = 0x00;
 
 int flexHighlightPen() {
     return int(sPen);

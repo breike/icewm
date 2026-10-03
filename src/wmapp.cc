@@ -33,6 +33,8 @@
 #include "yxcontext.h"
 #include "ytooltip.h"
 #include "tilingmgr.h"
+#include "ycolor.h"
+#include "flexframe.h"
 #ifdef CONFIG_XFREETYPE
 #include <ft2build.h>
 #include <X11/Xft/Xft.h>
@@ -1407,6 +1409,13 @@ YWMApp::YWMApp(int *argc, char ***argv, const char *displayName,
     WMConfig::loadConfiguration(configFile);
     WMConfig::loadThemeConfiguration();
     WMConfig::loadConfiguration("prefoverride");
+    // apply the themable flex-highlight outline defaults (the IPC
+    // commands `flex highlight pen/color` may still override them later)
+    flexSetHighlightPen(int(flexHighlightPenWidth));
+    if (nonempty(flexHighlightColorStr)) {
+        YColor color(flexHighlightColorStr);
+        flexSetHighlightColor(color.red(), color.green(), color.blue());
+    }
     if (focusMode != FocusCustom)
         initFocusMode();
     YIcon::fixIconSizes();
