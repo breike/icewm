@@ -96,6 +96,8 @@ YWindowManager::YWindowManager(
     fRestackLock = 0;
     fRestackUpdate = 0;
     fFullscreenEnabled = true;
+    fFlexModeMove = false;
+    fFlexModeResize = false;
     fCreatedUpdated = true;
     fLayeredUpdated = true;
     fDefaultKeyboard = 0;
@@ -143,6 +145,34 @@ YWindowManager::YWindowManager(
     }
 
     YWindow::setInputFocus("rootFocus");
+}
+
+void YWindowManager::setFlexMode(bool resize, bool on) {
+    if (on && on == (resize ? fFlexModeResize : fFlexModeMove))
+        return;   // already active for this kind
+    if (on) {
+        // a second mode replaces the first one
+        fFlexModeMove = false;
+        fFlexModeResize = false;
+        // grab the keyboard so every key is delivered to us while the
+        // mode is active; GrabModeSync holds back the key until we say
+        // what to do with it (consume for arrows/Escape, replay below)
+        if (xapp->grabEvents(this, None, 0,
+                             /*grabMouse*/ false,
+                             /*grabKeyboard*/ true,
+                             /*grabTree*/ false))
+        {
+            if (resize)
+                fFlexModeResize = true;
+            else
+                fFlexModeMove = true;
+        }
+    }
+    else {
+        fFlexModeMove = false;
+        fFlexModeResize = false;
+        xapp->releaseEvents();
+    }
 }
 
 YWindowManager::~YWindowManager() {
@@ -426,6 +456,44 @@ bool YWindowManager::handleSwitchWorkspaceKey(const XKeyEvent& key) {
 
 bool YWindowManager::handleWMKey(const XKeyEvent& key, bool repeating) {
     YFrameWindow *frame = getFocus();
+
+    // Flex resize/move mode: swallow the arrows (moving or resizing the
+    // focused frame), exit on Escape, replay everything else.
+    if (flexModeActive()) {
+        if (key.type != KeyPress) {
+            // ignore KeyRelease/auto-repeat, but keep the grab
+            return true;
+        }
+        const KeySym k = keyCodeToKeySym(key.keycode);
+        const int step = flexMoveStep;
+        int dx = 0, dy = 0;
+        if (k == XK_Left || k == XK_KP_Left)
+            dx = -step;
+        else if (k == XK_Right || k == XK_KP_Right)
+            dx = +step;
+        else if (k == XK_Up || k == XK_KP_Up)
+            dy = -step;
+        else if (k == XK_Down || k == XK_KP_Down)
+            dy = +step;
+        else if (k == XK_Escape) {
+            setFlexMode(true, false);   // releases the keyboard grab
+            return true;
+        }
+
+        if (dx != 0 || dy != 0) {
+            XAllowEvents(xapp->display(), SyncKeyboard, key.time);
+            if (fFlexModeResize)
+                flexResize(manager, ".", dx, dy, 0, 0);
+            else
+                flexMove(manager, ".", dx, dy);
+            return true;
+        }
+        // not an arrow or Escape: let the key through to the app below.
+        // The grab is still active, so replay that one key and keep the
+        // mode on for the next one.
+        XAllowEvents(xapp->display(), ReplayKeyboard, key.time);
+        return true;
+    }
 
     for (KProgram* p : keyProgs) {
         if (p->isKey(key)) {

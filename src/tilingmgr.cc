@@ -640,6 +640,17 @@ void tilingHandleRequest(YWindowManager* manager, const char* request,
                     flexWindowFocus(manager, label, forward);
                 }
             }
+            else if (sub == "mode") {
+                // flex mode <resize|move> <on|off>
+                // Enter or leave a modal mode in which the arrow keys
+                // resize or move the flexible frame of the focused
+                // window (Escape leaves the mode).
+                if (tokens.size() > 3) {
+                    const bool resize = (tokens[2] == "resize");
+                    const bool on = (tokens[3] == "on");
+                    manager->setFlexMode(resize, on);
+                }
+            }
         }
     }
     else if (cmd == "workspace-set-group") {

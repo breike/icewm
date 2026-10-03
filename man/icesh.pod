@@ -1018,6 +1018,15 @@ I<label> I<x> I<y> I<width> I<height>.
 Remove all flexible frames of the active workspace and unbind their
 windows.
 
+=item B<flex mode> B<resize>|B<move> B<on>|B<off>
+
+Enter (B<on>) or leave (B<off>) a modal mode in which the arrow keys
+are intercepted by IceWM and act on the flexible frame of the focused
+window: B<resize> grows or shrinks the frame, B<move> shifts it, by a
+step configured with C<FlexMoveStep> (default 8 pixels). B<Escape>
+leaves the mode. Any other key is passed through to the application
+normally.
+
 =item B<flex highlight pen> I<thickness>
 
 Set the thickness of the persistent focus outline, in pixels

@@ -28,6 +28,7 @@ XIV(bool, showMoveSizeStatus,                   true)
 XIV(bool, workspaceSwitchStatus,                true)
 XIV(bool, beepOnNewMail,                        false)
 XIV(bool, tilingEnabled,                        false)
+XIV(int, flexMoveStep,                          8)
 XIV(bool, warpPointer,                          false)
 XIV(bool, warpPointerOnEdgeSwitch,              false)
 XIV(bool, opaqueMove,                           true)
@@ -410,6 +411,7 @@ cfoption icewm_preferences[] = {
     OIV("EdgeResistance",                       &EdgeResistance, 0, 10000,      "Resistance in pixels when trying to move windows off the screen (10000 = infinite)"),
     OIV("PointerFocusDelay",                    &pointerFocusDelay, 0, 1000,    "Delay in ms for pointer focus switching"),
     OIV("SnapDistance",                         &snapDistance, 0, 64,           "Distance in pixels before windows snap together"),
+    OIV("FlexMoveStep",                         &flexMoveStep, 1, 1000,         "Step in pixels for flex move/resize mode arrows"),
     OIV("EdgeSwitchDelay",                      &edgeSwitchDelay, 0, 5000,      "Screen edge workspace switching delay in ms"),
     OIV("ScrollBarStartDelay",                  &scrollBarStartDelay, 0, 5000,  "Inital scroll bar autoscroll delay in ms"),
     OIV("ScrollBarDelay",                       &scrollBarDelay, 0, 5000,       "Scroll bar autoscroll delay in ms"),

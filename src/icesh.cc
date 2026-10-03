@@ -3862,7 +3862,7 @@ bool IceSh::flexCommand()
         return false;
 
     if ( !haveArg()) {
-        msg(_("flex requires a subcommand (add, remove, focus, setlabel, bind, dump, clear, resize, move, group, window, highlight)."));
+        msg(_("flex requires a subcommand (add, remove, focus, setlabel, bind, dump, clear, resize, move, group, window, highlight, mode)."));
         throw 1;
     }
 
@@ -3946,6 +3946,25 @@ bool IceSh::flexCommand()
         request += std::string(1, '\0') + (forward ? "1" : "0");
         if (haveArg() && !isArg("-"))
             request += std::string(1, '\0') + std::string(getArg());
+    }
+    else if (0 == strcmp(sub, "mode")) {
+        // flex mode <resize|move> <on|off>
+        ++argp;
+        if (!haveArg() || (0 != strcmp(*argp, "resize") &&
+                           0 != strcmp(*argp, "move"))) {
+            msg(_("flex mode requires a subcommand (resize, move)."));
+            throw 1;
+        }
+        const char* msub(*argp);
+        ++argp;
+        if (!haveArg() || (0 != strcmp(*argp, "on") &&
+                           0 != strcmp(*argp, "off"))) {
+            msg(_("flex mode %s requires on or off."), msub);
+            throw 1;
+        }
+        request += std::string(1, '\0') + "mode";
+        request += std::string(1, '\0') + std::string(msub);
+        request += std::string(1, '\0') + std::string(getArg());
     }
     else {
         msg(_("flex: unknown subcommand `%s'."), sub);

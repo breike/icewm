@@ -88,6 +88,16 @@ public:
 
     virtual void grabKeys();
 
+    //! Enter (on=true) or leave a modal flex mode. In a flex mode every
+    //! key that reaches the manager is intercepted: the arrow keys move
+    //! (move mode) or resize (resize mode) the flexible frame of the
+    //! focused window, Escape exits the mode, and any other key is
+    //! replayed to the application below. Only one flex mode can be
+    //! active at a time; starting one stops the other.
+    void setFlexMode(bool resize, bool on);
+    //! true while a flex move/resize mode is active.
+    bool flexModeActive() const { return fFlexModeMove || fFlexModeResize; }
+
     virtual void handleButton(const XButtonEvent &button);
     virtual void handleClick(const XButtonEvent &up, int count);
     virtual bool handleKey(const XKeyEvent &key);
@@ -395,6 +405,8 @@ private:
     int fRestackUpdate;
     int fServerGrabCount;
     bool fFullscreenEnabled;
+    bool fFlexModeMove;
+    bool fFlexModeResize;
 
     WMState fWmState;
     UserTime fLastUserTime;
