@@ -22,8 +22,15 @@ b2sums=('SKIP')
 pkgver() {
   cd "$pkgname"
 
-  # 4.1.0-10-gb4d093be -> 4.1.0.10.gb4d093be
-  git describe --tags | sed 's/-/./g'
+  # The breike fork carries no tags (they only exist upstream), so a fresh
+  # clone has none and `git describe --tags` would fail. Fall back to a
+  # date-based version for that case.
+  local v
+  v="$(git describe --tags 2>/dev/null || true)"
+  if [ -z "$v" ]; then
+    v="4.1.0.$(git log -1 --format=%cd --date=format:%Y%m%d)"
+  fi
+  echo "$v" | sed 's/-/./g'
 }
 
 build() {
