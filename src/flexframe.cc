@@ -187,11 +187,48 @@ bool FlexFrameSet::groupRemove(const string& group) {
     return true;
 }
 
+bool FlexFrameSet::groupRename(const string& oldGroup,
+                               const string& newGroup) {
+    if (oldGroup == newGroup || newGroup.empty())
+        return false;
+    auto it = groups_.find(oldGroup);
+    if (it == groups_.end() || groups_.count(newGroup) != 0)
+        return false;
+    // move the members and the last-focused pointer under the new name
+    groups_[newGroup] = std::move(it->second);
+    groups_.erase(it);
+    auto lf = groupLastFocused_.find(oldGroup);
+    if (lf != groupLastFocused_.end()) {
+        groupLastFocused_[newGroup] = lf->second;
+        groupLastFocused_.erase(lf);
+    }
+    return true;
+}
+
 vector<string> FlexFrameSet::groupMembers(const string& group) const {
     auto it = groups_.find(group);
     if (it == groups_.end())
         return {};
     return it->second;
+}
+
+string FlexFrameSet::groupOfFrame(const string& label) const {
+    using std::find;
+    for (const auto& kv : groups_)
+        if (find(kv.second.begin(), kv.second.end(), label) != kv.second.end())
+            return kv.first;
+    return "";
+}
+
+string FlexFrameSet::focusedGroup(const string& label) const {
+    // A frame may belong to several groups; prefer the one that last
+    // recorded focus on it (groupNoteFocus), i.e. the group the user is
+    // actually working with, over the mere "first group that contains
+    // it" fallback.
+    for (const auto& lf : groupLastFocused_)
+        if (lf.second == label)
+            return lf.first;
+    return groupOfFrame(label);
 }
 
 string FlexFrameSet::groupLastFocused(const string& group) const {

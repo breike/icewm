@@ -589,6 +589,13 @@ void tilingHandleRequest(YWindowManager* manager, const char* request,
                         // group add <name> <labels...>
                         if (tokens.size() > 3) {
                             vector<string> labels(tokens.begin() + 4, tokens.end());
+                            // "." means the focused window's frame
+                            if (labels.size() == 1 && labels[0] == ".") {
+                                YFrameWindow* focus = manager->getFocus();
+                                if (focus == nullptr || focus->flexFrame() == nullptr)
+                                    return;
+                                labels[0] = focus->flexFrame()->label();
+                            }
                             flexGroupAdd(manager, tokens[3], labels);
                         }
                     }
@@ -619,6 +626,21 @@ void tilingHandleRequest(YWindowManager* manager, const char* request,
                         // group remove <name>
                         if (tokens.size() > 3)
                             flexGroupRemove(manager, tokens[3]);
+                    }
+                    else if (gsub == "close") {
+                        // group close <name>; "<name>" may be "." for the
+                        // focused frame's group. Closes every window of
+                        // the group and drops the group itself.
+                        if (tokens.size() > 3)
+                            flexGroupClose(manager, tokens[3]);
+                    }
+                    else if (gsub == "rename") {
+                        // group rename <old> <new>; "<old>" may be "."
+                        // to rename the group of the focused frame.
+                        if (tokens.size() > 4)
+                            flexGroupRename(manager, tokens[3], tokens[4]);
+                        else if (tokens.size() == 4)
+                            flexGroupRename(manager, tokens[3], "");
                     }
                     else if (gsub == "dump") {
                         string dumpv = flexGroupDump(manager);
@@ -1508,6 +1530,68 @@ bool flexGroupRemove(YWindowManager* manager, const string& group) {
     if (set == nullptr)
         return false;
     return set->groupRemove(group);
+}
+
+bool flexGroupClose(YWindowManager* manager, const string& group) {
+    if (manager == nullptr)
+        return false;
+    int ws = manager->activeWorkspace();
+    FlexFrameSet* set = Tiling::instance().flex(ws);
+    if (set == nullptr)
+        return false;
+    // "." resolves to the group of the focused window's frame, exactly
+    // as in flexGroupRename.
+    string name = group;
+    if (name == ".") {
+        YFrameWindow* focus = manager->getFocus();
+        if (focus == nullptr || focus->flexFrame() == nullptr)
+            return false;
+        name = set->focusedGroup(focus->flexFrame()->label());
+        if (name.empty())
+            return false;
+    }
+    const vector<string> labels = set->groupMembers(name);
+    if (labels.empty())
+        return false;
+    // Close every window in every frame of the group. wmClose() sends
+    // WM_DELETE_WINDOW (or force-closes when the client accepts no
+    // protocol); frames orphaned by the close are collected on the
+    // server side, the group entry is dropped last.
+    bool any = false;
+    for (const string& label : labels) {
+        FlexFrame* f = set->find(label);
+        if (f == nullptr)
+            continue;
+        for (YFrameWindow* w : f->clients())
+            if (w != nullptr) {
+                w->wmClose();
+                any = true;
+            }
+    }
+    set->groupRemove(name);
+    return any;
+}
+
+bool flexGroupRename(YWindowManager* manager, const string& oldGroup,
+                     const string& newGroup) {
+    if (manager == nullptr)
+        return false;
+    int ws = manager->activeWorkspace();
+    FlexFrameSet* set = Tiling::instance().flex(ws);
+    if (set == nullptr)
+        return false;
+    // "." means the group the focused window's frame belongs to (the
+    // one that last recorded focus on it, if any).
+    string old = oldGroup;
+    if (old == ".") {
+        YFrameWindow* focus = manager->getFocus();
+        if (focus == nullptr || focus->flexFrame() == nullptr)
+            return false;
+        old = set->focusedGroup(focus->flexFrame()->label());
+        if (old.empty())
+            return false;
+    }
+    return set->groupRename(old, newGroup);
 }
 
 string flexGroupDump(YWindowManager* manager) {

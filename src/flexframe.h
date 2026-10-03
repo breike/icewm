@@ -118,6 +118,16 @@ public:
     //! remove the group (the frames themselves are kept). Returns true if
     //! it existed.
     bool groupRemove(const std::string& group);
+    //! rename a group, keeping its members and last-focused pointer.
+    //! Returns true if 'oldGroup' existed and 'newGroup' is a fresh
+    //! non-empty name.
+    bool groupRename(const std::string& oldGroup, const std::string& newGroup);
+    //! the first group that contains the frame 'label', or empty.
+    std::string groupOfFrame(const std::string& label) const;
+    //! the focused group of the frame 'label' (see focusedGroup()):
+    //! the group that last recorded focus on this frame, falling back to
+    //! groupOfFrame(). Empty when the frame is in no group.
+    std::string focusedGroup(const std::string& label) const;
     //! the group's member labels in list order.
     std::vector<std::string> groupMembers(const std::string& group) const;
     //! the label of the group's member that was focused most recently,

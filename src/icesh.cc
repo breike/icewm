@@ -3905,10 +3905,10 @@ bool IceSh::flexCommand()
         replyNeeded = (0 == strcmp(sub, "dump"));
     }
     else if (0 == strcmp(sub, "group")) {
-        // flex group <add|open|focus|remove|dump> ...
+        // flex group <add|open|focus|remove|rename|dump> ...
         ++argp;
         if ( !haveArg()) {
-            msg(_("flex group requires a subcommand (add, open, focus, remove, dump)."));
+            msg(_("flex group requires a subcommand (add, open, focus, remove, rename, close, dump)."));
             throw 1;
         }
         const char* gsub(*argp);

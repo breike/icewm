@@ -1067,6 +1067,22 @@ direction is B<next>.
 Delete the group I<name>. The frames themselves (and their windows)
 are kept.
 
+=item B<flex group close> I<name>
+
+Close every window in every frame of the group I<name>, then delete
+the group itself. I<name> may be B<.> (a dot) to address the group of
+the focused window's frame, as in B<flex group rename>. Closing sends
+B<WM_DELETE_WINDOW>, so clients may refuse to quit; frames that end up
+empty are removed and the group entry is dropped.
+
+=item B<flex group rename> I<old> I<new>
+
+Rename the group I<old> to I<new>, keeping its members and its
+last-focused member. I<old> may be B<.> (a dot) to rename the group
+of the focused window's frame — the group that last recorded focus on
+that frame, falling back to the first group containing it. The rename
+fails without effect when I<new> is empty or already in use.
+
 =item B<flex group dump>
 
 Print all groups of the active workspace, one per line, as

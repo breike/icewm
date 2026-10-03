@@ -266,6 +266,19 @@ bool flexWindowFocus(YWindowManager* manager, const std::string& label,
 //! `flex group remove <name>`: delete the group (frames are kept).
 bool flexGroupRemove(YWindowManager* manager, const std::string& group);
 
+//! `flex group close <name>`: close every window in every frame of the
+//! group, then delete the group itself. The name may be "." (the group
+//! of the focused window's frame). Returns false when the group is
+//! unknown or has no closeable frames.
+bool flexGroupClose(YWindowManager* manager, const std::string& group);
+
+//! `flex group rename <old> <new>`: rename a group, keeping its members
+//! and last-focused pointer. '<old>' may be "." (the group of the
+//! focused window's frame). Returns false when the group is unknown or
+//! '<new>' collides.
+bool flexGroupRename(YWindowManager* manager, const std::string& oldGroup,
+                     const std::string& newGroup);
+
 //! `flex group dump`: serialize the workspace's groups.
 std::string flexGroupDump(YWindowManager* manager);
 
