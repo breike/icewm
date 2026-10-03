@@ -9,7 +9,7 @@ arch=('x86_64')
 url="https://ice-wm.org/"
 license=('LGPL-2.0-only')
 depends=('alsa-lib' 'imlib2' 'libsm' 'librsvg' 'libsndfile' 'libxcomposite' 'libxcursor' 'libxdamage' 'libxinerama' 'libxrandr')
-makedepends=('cmake' 'ninja' 'git' 'asciidoctor' 'xorg-mkfontscale')
+makedepends=('cmake' 'ninja' 'git' 'gcc' 'asciidoctor' 'xorg-mkfontscale')
 optdepends=('perl: for icewm-menu-xrandr')
 
 # Source comes from the breike fork (the local icewm origin), not from
