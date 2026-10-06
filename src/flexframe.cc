@@ -628,11 +628,18 @@ void flexUpdateHighlight(YWindowManager* manager, YFrameWindow* focus) {
         return;
     }
     FlexFrame* frame = focus->flexFrame();
-    // fullscreen windows are not "tiling candidates" (isTilingCandidate
-    // rejects them), so only demand candidate-ness for non-fullscreen
-    // windows; a fullscreen window bound to a frame still gets its
-    // screen-wide outline.
-    if (!focus->isFullscreen() && !isFlexCandidate(focus)) {
+    // Fullscreen windows: never draw the frame outline. A fullscreen
+    // window covers the whole screen, so a leftover (frame-sized or
+    // screen-sized) border on top of it would be a visible artifact.
+    // setState hides the outline when entering fullscreen, and this
+    // branch keeps it hidden on every focus change while fullscreen.
+    // On the way out of fullscreen, setState calls flexApplyLayout +
+    // flexUpdateHighlight, which restore the proper frame outline.
+    if (focus->isFullscreen()) {
+        flexHighlight().show(manager, YRect());   // hide
+        return;
+    }
+    if (!isFlexCandidate(focus)) {
         flexHighlight().show(manager, YRect());
         return;
     }
@@ -640,18 +647,7 @@ void flexUpdateHighlight(YWindowManager* manager, YFrameWindow* focus) {
         flexHighlight().show(manager, YRect());
         return;
     }
-    if (focus->isFullscreen()) {
-        // fullscreen: the outline follows the window's fullscreen
-        // geometry (the whole screen) instead of hiding. The frame rect
-        // stays unchanged; we only outline the stretched window area,
-        // using the screen geometry of the window's current screen so
-        // the outline matches the stretched window even if the frame's
-        // own coordinates lag behind.
-        YRect fs = desktop->getScreenGeometry(focus->getScreen());
-        flexHighlight().show(manager, fs);
-    } else {
-        flexHighlight().show(manager, frame->rect());
-    }
+    flexHighlight().show(manager, frame->rect());
 }
 
 /*! Explicitly outline the given flexible frame rectangle (used by the

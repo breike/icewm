@@ -3614,15 +3614,21 @@ void YFrameWindow::setState(int mask, int state) {
             manager->setFocus(this);
     }
     if (flip & WinStateFullscreen) {
-        // the persistent focus outline must react to the window going
-        // fullscreen (hide) and coming back (show again)
-        flexUpdateHighlight(manager, this);
-        // leaving fullscreen: re-apply the frame geometry so a window
+        // Entering fullscreen: hide the persistent outline so the
+        // fullscreen window covers the whole screen without a leftover
+        // flex-frame border on top of it. flexUpdateHighlight(nullptr)
+        // is the "hide" path (empty rect).
+        if (gain & WinStateFullscreen)
+            flexUpdateHighlight(manager, nullptr);
+        // Leaving fullscreen: re-apply the frame geometry so a window
         // that was stretched to the whole screen snaps back into its
-        // flexible frame rectangle. (flexApplyLayout skips windows that
-        // are still fullscreen, so this is a no-op on the way in.)
-        if (lose & WinStateFullscreen)
+        // flexible frame rectangle, and re-draw the outline on its frame.
+        // (flexApplyLayout skips windows that are still fullscreen, so
+        // this is a no-op on the way in.)
+        if (lose & WinStateFullscreen) {
             flexApplyLayout(manager, manager->activeWorkspace());
+            flexUpdateHighlight(manager, this);
+        }
     }
 
     if (lose & WinStateUrgent) {
