@@ -288,6 +288,19 @@ bool isFlexCandidate(const YFrameWindow* frame) {
     return isTilingCandidate(frame);
 }
 
+/*! Like isFlexCandidate, but accepts fullscreen windows: binding a
+ * fullscreen window into a frame must be possible so the outline can
+ * follow it on the full screen (flexApplyLayout still skips fullscreen
+ * windows, so the binding is for tracking/highlight only). */
+bool isFlexBindCandidate(const YFrameWindow* frame) {
+    if (frame == nullptr)
+        return false;
+    // fullscreen windows pass; otherwise behave like isFlexCandidate
+    if (frame->isFullscreen())
+        return true;
+    return isTilingCandidate(frame);
+}
+
 int flexGap() {
     return 8;
 }
@@ -319,7 +332,8 @@ void flexApplyLayout(YWindowManager* manager, int workspace) {
         for (YFrameWindow* f : frame.clients()) {
             if (f == nullptr)
                 continue;
-            if (!isFlexCandidate(f) || !f->visibleOn(workspace))
+            if (!isFlexCandidate(f) || !f->visibleOn(workspace) ||
+                f->isFullscreen())
                 continue;
             f->applyTilingGeometry(YRect(r.x() + gap, r.y() + gap,
                                          int(r.width()) - 2 * gap,
@@ -609,16 +623,35 @@ bool flexSetHighlightColor(int r, int g, int b) {
 void flexUpdateHighlight(YWindowManager* manager, YFrameWindow* focus) {
     if (manager == nullptr)
         return;
-    if (focus == nullptr || !focus->visible() || focus->isFullscreen() ||
-        !isFlexCandidate(focus)) {
+    if (focus == nullptr || !focus->visible()) {
         flexHighlight().show(manager, YRect());   // empty rect -> hide
         return;
     }
     FlexFrame* frame = focus->flexFrame();
-    if (frame == nullptr)
+    // fullscreen windows are not "tiling candidates" (isTilingCandidate
+    // rejects them), so only demand candidate-ness for non-fullscreen
+    // windows; a fullscreen window bound to a frame still gets its
+    // screen-wide outline.
+    if (!focus->isFullscreen() && !isFlexCandidate(focus)) {
         flexHighlight().show(manager, YRect());
-    else
+        return;
+    }
+    if (frame == nullptr) {
+        flexHighlight().show(manager, YRect());
+        return;
+    }
+    if (focus->isFullscreen()) {
+        // fullscreen: the outline follows the window's fullscreen
+        // geometry (the whole screen) instead of hiding. The frame rect
+        // stays unchanged; we only outline the stretched window area,
+        // using the screen geometry of the window's current screen so
+        // the outline matches the stretched window even if the frame's
+        // own coordinates lag behind.
+        YRect fs = desktop->getScreenGeometry(focus->getScreen());
+        flexHighlight().show(manager, fs);
+    } else {
         flexHighlight().show(manager, frame->rect());
+    }
 }
 
 /*! Explicitly outline the given flexible frame rectangle (used by the

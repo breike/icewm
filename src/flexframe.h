@@ -205,6 +205,7 @@ void flexHighlightRedraw();
  * in both systems at once (we do not bind it anywhere else, though).
  */
 bool isFlexCandidate(const YFrameWindow* frame);
+bool isFlexBindCandidate(const YFrameWindow* frame);
 
 /*! Apply the rectangles of all flexible frames of the given workspace:
  * each bound, still-valid window is resized to its frame's rectangle.

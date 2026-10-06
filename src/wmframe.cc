@@ -3533,6 +3533,13 @@ void YFrameWindow::updateLayout() {
     else {
         bool move = (posX != x() || posY != y());
         MSG(("updateLayout %d %d %d %d (%d)", posX, posY, posW, posH, move));
+        // A window bound to a flexible frame is positioned/sized by its
+        // frame, not by its "normal" (unmanaged) geometry. Otherwise any
+        // layout update would snap it back to the pre-tiling position
+        // (this is what broke leaving fullscreen: the window kept the
+        // pre-bind 428x294 instead of its 17,17 flex rect).
+        if (fFlexFrame != nullptr)
+            return;
         setWindowGeometry(YRect(posX, posY, posW, posH));
         if (move && isManaged()) {
             sendConfigure();
@@ -3610,6 +3617,12 @@ void YFrameWindow::setState(int mask, int state) {
         // the persistent focus outline must react to the window going
         // fullscreen (hide) and coming back (show again)
         flexUpdateHighlight(manager, this);
+        // leaving fullscreen: re-apply the frame geometry so a window
+        // that was stretched to the whole screen snaps back into its
+        // flexible frame rectangle. (flexApplyLayout skips windows that
+        // are still fullscreen, so this is a no-op on the way in.)
+        if (lose & WinStateFullscreen)
+            flexApplyLayout(manager, manager->activeWorkspace());
     }
 
     if (lose & WinStateUrgent) {

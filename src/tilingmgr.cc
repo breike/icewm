@@ -1173,9 +1173,10 @@ bool flexAdd(YWindowManager* manager, const vector<string>& tokens,
     set->add(label, rect); // create or override this frame's rect
     set->setFocusedLabel(label);
     set->noteFocusInGroups(label);
-    // bind the focused window into this frame (overriding its rect)
+    // bind the focused window into this frame (overriding its rect);
+    // accept fullscreen windows too so their outline follows them
     YFrameWindow* focus = manager->getFocus();
-    if (focus && isFlexCandidate(focus))
+    if (focus && isFlexBindCandidate(focus))
         focus->setFlexFrame(set->find(label));
     flexApplyLayout(manager, ws);
     flexFrameHighlight(manager, rect);
@@ -1303,7 +1304,7 @@ bool flexBind(YWindowManager* manager, const string& label) {
     if (f == nullptr)
         return false;
     YFrameWindow* focus = manager->getFocus();
-    if (focus == nullptr || !isFlexCandidate(focus))
+    if (focus == nullptr || !isFlexBindCandidate(focus))
         return false;
     focus->setFlexFrame(f); // rebind; group membership is not touched
     flexApplyLayout(manager, ws);
