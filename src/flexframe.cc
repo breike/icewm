@@ -430,15 +430,31 @@ FlexHighlightWindow::FlexHighlightWindow(const YRect& rect) : YWindow(nullptr) {
 void FlexHighlightWindow::paint(Graphics& g, const YRect& /*r*/) {
     const int pen = flexHighlightPen();
     const YColor col = flexHighlightColor();
-    // Outline the frame, drawn one pixel inside its edge so a pen
-    // larger than 1 is fully on-screen: the line path lies on the pixel
-    // grid [1..w-2] and its pen-width both halves stay within the
-    // overlay window (which has extra margin, see flexHighlightGeo).
+    // Outline the frame exactly on its boundary in global coordinates.
+    // The overlay sits at (frame - m) (flexHighlightGeo), so a stroke
+    // drawn at offset m in the overlay lands on the frame edge.
+    // Draw the four sides separately: XDrawRectangle renders the
+    // right/bottom edges one pixel thicker than the top/left at
+    // lineWidth 1, which would leave the window looking 1px out of
+    // frame on those sides.
+    const int m = (pen + 1) / 2;
     const int w = int(fFrameRect.width());
     const int h = int(fFrameRect.height());
+    const int x1 = m, y1 = m;               // top-left of the frame
+    const int x2 = m + w - 1, y2 = m + h - 1;   // bottom-right of the frame
     g.setColor(col);
-    g.setLineWidth(pen);
-    g.drawRect(1, 1, w - 2, h - 2);
+    // line_width=1 would render each stroke a pixel thick on the
+    // top/left but two pixels on the bottom/right (the width straddles
+    // the path and rounds outward there); a thin line is exactly 1px
+    // and stays centered on the path. pen>1 needs the explicit width.
+    if (pen <= 1)
+        g.setThinLines();
+    else
+        g.setLineWidth(pen);
+    g.drawLine(x1, y1, x2, y1);             // top
+    g.drawLine(x2, y1, x2, y2);             // right
+    g.drawLine(x2, y2, x1, y2);             // bottom
+    g.drawLine(x1, y2, x1, y1);             // left
 }
 
 void FlexHighlightWindow::layoutShape() {
@@ -452,21 +468,23 @@ void FlexHighlightWindow::layoutShape() {
     // and the window's (black, parent-relative) background would still
     // paint the interior over the windows beneath.
     const int pen = flexHighlightPen();
-    // the drawn stroke runs a pixel inside the frame edge (paint() uses
-    // offset 1) and for pen > 1 its width straddles the path, extending
-    // one pixel outward past the origin; the ring therefore starts at
-    // -1 so that half a pixel beyond 0 is still inside the shape
-    const int L = -1;                                   // stroke inset
+    // paint() strokes the frame boundary at overlay offset m
+    // (see paint()). The ring must cover the stroke band: the path
+    // spans x m..m+w-1 and y m..m+h-1, and a pen > 1 straddles it
+    // by pen/2 on each side.
+    const int m = (pen + 1) / 2;
     const int w = int(fFrameRect.width());
     const int h = int(fFrameRect.height());
-    const int t = pen + 2;                              // stroke thickness (+2 fudge)
-    const int R = w - pen / 2 - 1;
-    const int B = h - pen / 2 - 1;
+    const int half = pen / 2;
+    const int L = m - half;                                 // left of stroke
+    const int B = m + h - 1 - half;                         // bottom of stroke
+    const int R = m + w - 1 - half;                         // right of stroke
+    const int t = pen + 2;                          // stroke thickness (+2 fudge)
     XRectangle ring[4] = {
-        { short(L), short(L),   static_cast<unsigned short>(w), static_cast<unsigned short>(t) }, // top
-        { short(L), short(B),   static_cast<unsigned short>(w), static_cast<unsigned short>(t) }, // bottom
-        { short(L), short(L),   static_cast<unsigned short>(t), static_cast<unsigned short>(h) }, // left
-        { short(R), short(L),   static_cast<unsigned short>(t), static_cast<unsigned short>(h) }, // right
+        { short(L), short(L), static_cast<unsigned short>(w + 2 * half), static_cast<unsigned short>(t) }, // top
+        { short(L), short(B), static_cast<unsigned short>(w + 2 * half), static_cast<unsigned short>(t) }, // bottom
+        { short(L), short(L), static_cast<unsigned short>(t), static_cast<unsigned short>(h + 2 * half) }, // left
+        { short(R), short(L), static_cast<unsigned short>(t), static_cast<unsigned short>(h + 2 * half) }, // right
     };
     XShapeCombineRectangles(xapp->display(), handle(),
                             ShapeBounding, 0, 0, ring, 4,
@@ -509,15 +527,13 @@ private:
  * (paint() uses pen/2) then places the top/left strokes off-screen —
  * see the paint() contract below, which clamps to the work area. */
 static YRect flexHighlightGeo(const YRect& rect, int pen) {
-    int m = pen;
-    // keep a minimum margin so the window decoration (resize handles,
-    // border) never overlaps the outline even at pen 1
-    if (m < 8)
-        m = 8;
-    // the outline is drawn at offset 1 in the overlay, one pixel inside
-    // the frame edge; add one extra pixel of margin so that a >1px pen
-    // straddling the path is not clipped by the window edge
-    m += 1;
+    // Only reserve room for the pen's half-stroke that falls outside
+    // the frame edge. paint() draws the outline on the frame boundary
+    // itself (offset 0), so a pen-1 line sits exactly on the edge of
+    // the window. A larger margin would shift the whole overlay into
+    // the negative (top/left), leaving a visible gap between the
+    // outline and a window that hugs the screen corner (0,0).
+    const int m = (pen + 1) / 2;
     return YRect(rect.x() - m, rect.y() - m,
                  rect.width() + 2 * m, rect.height() + 2 * m);
 }
