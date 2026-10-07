@@ -651,8 +651,16 @@ void flexUpdateHighlight(YWindowManager* manager, YFrameWindow* focus) {
 }
 
 /*! Explicitly outline the given flexible frame rectangle (used by the
- * IPC focus commands, which know the frame they just focused). */
+ * IPC focus commands, which know the frame they just focused). Hidden
+ * while the focused window is fullscreen: a frame-sized outline on top
+ * of a fullscreen window would be a visible artifact. Focus commands
+ * fire after setFocus already synced the persistent outline (which also
+ * hides it for fullscreen), so this only needs the fullscreen guard,
+ * not a full flexUpdateHighlight(). */
 void flexFrameHighlight(YWindowManager* manager, const YRect& rect) {
+    YFrameWindow* focus = manager ? manager->getFocus() : nullptr;
+    if (focus != nullptr && focus->isFullscreen())
+        return;   // never outline on top of a fullscreen window
     flexHighlight().show(manager, rect);
 }
 
