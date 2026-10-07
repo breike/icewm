@@ -6,6 +6,7 @@
 
 #include "wmframe.h"
 #include "wmmgr.h"
+#include "prefs.h"          // flexGapInset
 #include "tilinglayout.h"   // isTilingCandidate
 #include "tilingmgr.h"      // Tiling::instance().flex()
 #include "ypaint.h"         // Graphics
@@ -335,7 +336,13 @@ bool isFlexBindCandidate(const YFrameWindow* frame) {
 }
 
 int flexGap() {
-    return 8;
+    // The inset between a flexible frame's rectangle and the windows
+    // inside it. The default (0) makes a bound window fill its frame
+    // exactly, so a frame at the screen corner has no visible seam
+    // between the outline and the window. A non-zero gap keeps the
+    // window smaller than the frame with an even margin on all sides,
+    // which can be useful when the frame wraps several stacked windows.
+    return flexGapInset;
 }
 
 FlexFrameSet* flexFrames(YWindowManager* manager, int workspace) {
