@@ -624,28 +624,6 @@ bool flexSetHighlightColor(int r, int g, int b) {
     return true;
 }
 
-/*! True when any fullscreen window is currently visible on the active
- * workspace. A fullscreen (or sticky-fullscreen) window covers the
- * whole screen, so the persistent frame outline must not be drawn on
- * top of it: the app below has the floor, and a frame-sized border on
- * top would be a visible artifact (the "frame without its window"
- * case). The focused window itself may be a normal one while a
- * different fullscreen window (e.g. sticky on all workspaces) is what
- * actually covers the screen.
- */
-static bool anyFullscreenVisible(YWindowManager* manager) {
-    if (manager == nullptr)
-        return false;
-    for (YFrameIter it = manager->focusedIterator(); ++it; ) {
-        YFrameWindow* w = it;
-        if (w == nullptr)
-            continue;
-        if (w->isFullscreen() && w->visibleNow() && !w->isHidden())
-            return true;
-    }
-    return false;
-}
-
 /*! Update the overlay to outline the flexible frame of a focused
  * window (if it participates in flexible frames and is not fullscreen),
  * or hide it. Called whenever focus changes. The window that ended up
@@ -682,26 +660,20 @@ void flexUpdateHighlight(YWindowManager* manager, YFrameWindow* focus) {
         flexHighlight().show(manager, YRect());
         return;
     }
-    if (anyFullscreenVisible(manager)) {
-        flexHighlight().show(manager, YRect());   // hide: fullscreen covers the screen
-        return;
-    }
     flexHighlight().show(manager, frame->rect());
 }
 
 /*! Explicitly outline the given flexible frame rectangle (used by the
  * IPC focus commands, which know the frame they just focused). Hidden
- * while a fullscreen window covers the screen: a frame-sized outline
- * on top of a fullscreen window would be a visible artifact. Focus
- * commands fire after setFocus already synced the persistent outline
- * (which also hides it for fullscreen), so this only needs the
- * fullscreen guard, not a full flexUpdateHighlight(). */
+ * while the focused window is fullscreen: a frame-sized outline on top
+ * of a fullscreen window would be a visible artifact. Focus commands
+ * fire after setFocus already synced the persistent outline (which also
+ * hides it for fullscreen), so this only needs the fullscreen guard,
+ * not a full flexUpdateHighlight(). */
 void flexFrameHighlight(YWindowManager* manager, const YRect& rect) {
     YFrameWindow* focus = manager ? manager->getFocus() : nullptr;
     if (focus != nullptr && focus->isFullscreen())
         return;   // never outline on top of a fullscreen window
-    if (anyFullscreenVisible(manager))
-        return;   // ... nor under a (sticky) fullscreen window
     flexHighlight().show(manager, rect);
 }
 
