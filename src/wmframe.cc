@@ -2024,9 +2024,16 @@ void YFrameWindow::loseWinFocus() {
 
         if (hasState(WinStateFocused)) {
             setState(WinStateFocused | WinStateUrgent, 0);
-        } else {
-            updateLayer();
         }
+        // A fullscreen window only sits in WinLayerFullscreen while it
+        // holds the focus (updateLayer() checks manager->getFocus());
+        // once the focus moves on, its layer must drop back to the
+        // window-type layer or it keeps covering the screen forever
+        // (e.g. when the focus moves to a window in a flexible frame:
+        // `flex focus` goes through setFocus and nothing else triggers
+        // an updateLayer() on the old fullscreen window, so the normal
+        // window stays hidden under it).
+        updateLayer();
         container()->grabButtons();
         if (isIconic())
             fMiniIcon->repaint();
@@ -3154,7 +3161,6 @@ void YFrameWindow::updateLayer(bool restack) {
             }
         }
     }
-
     if (newLayer != fWinActiveLayer) {
         removeFrame();
         fWinActiveLayer = newLayer;

@@ -1198,34 +1198,6 @@ bool flexRemove(YWindowManager* manager, const string& label) {
 static bool flexWindowFocusStep(YWindowManager* manager, FlexFrameSet* set,
                                 const string& label, bool forward);
 
-/*! Restore the real layer/stacking state of the window that had focus
- * before a flexible-frame focus command ran. A fullscreen window gets
- * WinLayerFullscreen only while it holds focus (updateLayer); once the
- * focus moves to a normal window (e.g. `flex focus` on another tag), a
- * still-visible fullscreen window - one that is sticky on all
- * workspaces - keeps covering the screen at a layer above the focused
- * normal window, which then "does not appear": only the frame outline
- * shows it was focused. Mirror what YFrameWindow::activate() does:
- * drop the fullscreen layer lock of the previous focus and, when the
- * fullscreen window stacks above the new one, lower the fullscreen
- * window below it. */
-static void flexFocusOutOfFullscreen(YWindowManager* manager,
-                                     YFrameWindow* target) {
-    if (manager == nullptr || target == nullptr)
-        return;
-    YFrameWindow* prev = manager->getFocus();
-    if (prev == nullptr || prev == target || !prev->isFullscreen())
-        return;
-    if (prev->isAllWorkspaces() && prev->visibleNow() && !prev->isHidden()) {
-        YFullscreenLock full;
-        prev->updateLayer(false);   // drops WinLayerFullscreen
-        if (prev->isBefore(target)) {
-            if (manager->setBelow(prev, target))
-                prev->beneath(target);
-        }
-    }
-}
-
 /*! Pre-declare flexWindowFocusStep so flexFocus can jump straight to
  * window cycling while the full definition follows below. */
 static bool flexWindowFocusStep(YWindowManager* manager, FlexFrameSet* set,
@@ -1277,8 +1249,12 @@ bool flexFocus(YWindowManager* manager, const string& label) {
     if (target != nullptr) {
         if (target->getWorkspace() != ws)
             target->setWorkspace(ws);
-        flexFocusOutOfFullscreen(manager, target);
-        manager->setFocus(target, true, true);
+        // Focus AND raise: a plain setFocus() would not restack in the
+        // X server, so a (flex) fullscreen window whose layer just
+        // dropped back to normal could still cover the target. focus()
+        // does setFocus() and then wmRaise() (RaiseOnFocus), which
+        // physically raises the window within its layer.
+        target->focus(true);
     }
     // visual feedback: flash the frame rectangle
     if (target != nullptr)
@@ -1572,7 +1548,6 @@ static bool flexWindowFocusStep(YWindowManager* manager, FlexFrameSet* set,
     // raise the window and give it focus; a subsequent flexApplyLayout
     // (below) also re-applies the frame's current rectangle, so the
     // window matches a frame that was resized/moved since it was bound.
-    flexFocusOutOfFullscreen(manager, next);
     next->activate(true, true);
     flexApplyLayout(manager, manager->activeWorkspace());
     flexFrameHighlight(manager, f->rect());
