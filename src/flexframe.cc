@@ -39,11 +39,19 @@ bool FlexFrame::detach(YFrameWindow* frame) {
     if (it == clients_.end())
         return false;
     clients_.erase(it);
+    if (lastFocused_ == frame)
+        lastFocused_ = nullptr;
     return true;
 }
 
 void FlexFrame::clear() {
     clients_.clear();
+    lastFocused_ = nullptr;
+}
+
+void FlexFrame::noteFocus(YFrameWindow* frame) {
+    if (frame && hasClient(frame))
+        lastFocused_ = frame;
 }
 
 bool FlexFrame::hasClient(const YFrameWindow* frame) const {
@@ -64,6 +72,18 @@ YFrameWindow* FlexFrame::focusTarget() const {
             anyPlain = true;
             break;
         }
+    }
+    // Restore the window that had focus here last, provided it is still
+    // a usable client of this frame. Without this, returning to a
+    // multi-window frame (via `flex focus` after visiting another
+    // frame) always jumps to the frame's preferred window instead of
+    // the one the user was actually working in.
+    if (lastFocused_ &&
+        std::find(clients_.begin(), clients_.end(), lastFocused_) != clients_.end() &&
+        !lastFocused_->isMinimized() && !lastFocused_->isHidden() &&
+        !lastFocused_->isRollup() &&
+        !(lastFocused_->isFullscreen() && anyPlain)) {
+        return lastFocused_;
     }
     for (auto it = clients_.rbegin(); it != clients_.rend(); ++it) {
         YFrameWindow* frame = *it;
@@ -661,6 +681,19 @@ void flexUpdateHighlight(YWindowManager* manager, YFrameWindow* focus) {
         return;
     }
     flexHighlight().show(manager, frame->rect());
+}
+
+/*! Record that a window received focus: remember it as its frame's
+ * "last focused" window. Called on every real focus change (from
+ * YWindowManager) so returning to a multi-window flexible frame via
+ * `flex focus` restores the window that was focused here, not the
+ * frame's default. */
+void flexNoteFrameFocus(YFrameWindow* frame) {
+    if (frame == nullptr)
+        return;
+    FlexFrame* f = frame->flexFrame();
+    if (f != nullptr)
+        f->noteFocus(frame);
 }
 
 /*! Explicitly outline the given flexible frame rectangle (used by the

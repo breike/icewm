@@ -1213,6 +1213,9 @@ void YWindowManager::setFocus(YFrameWindow *f, bool canWarp, bool reorder) {
     // hint), so pass the window explicitly; this covers every focus
     // path.
     flexUpdateHighlight(this, f);
+    // … and remember it as the window focused inside its flexible frame
+    // (used to restore focus when `flex focus` returns to the frame).
+    flexNoteFrameFocus(f);
 
     MSG(("SET FOCUS END"));
 }
@@ -3501,6 +3504,7 @@ void YWindowManager::switchFocusTo(YFrameWindow *frame, bool reorderFocus) {
     notifyActive(frame);
     updateClientList();
     flexUpdateHighlight(this, frame);
+    flexNoteFrameFocus(frame);
 }
 
 void YWindowManager::switchFocusFrom(YFrameWindow *frame) {

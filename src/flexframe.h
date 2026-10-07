@@ -55,14 +55,19 @@ public:
     bool isEmpty() const { return clients_.empty(); }
     bool hasClient(const YFrameWindow* frame) const;
 
-    //! the preferred window to focus: the last attached, non-minimized
+    //! the preferred window to focus: the last focused, non-minimized
     //! one that is visible on the workspace.
     YFrameWindow* focusTarget() const;
+
+    //! remember that 'frame' was the last focused window of this frame.
+    //! Dropped when the window leaves the frame (detach/clear).
+    void noteFocus(YFrameWindow* frame);
 
 private:
     YRect rect_;
     std::string label_;
     std::vector<YFrameWindow*> clients_;
+    YFrameWindow* lastFocused_ = nullptr;
 };
 
 /*! The set of flexible frames of one workspace, ordered by label. */
@@ -195,6 +200,14 @@ YColor flexHighlightColor();
 void flexUpdateHighlight(class YWindowManager* manager,
                          class YFrameWindow* frame);
 void flexFrameHighlight(class YWindowManager* manager, const YRect& rect);
+
+/*! Record that 'frame' is now the focused window of the flexible frame
+ * it is bound to (its per-frame "last focused" window, restored by
+ * flex focusTarget() when the user returns to the frame). Driven from
+ * YWindowManager like flexUpdateHighlight() so that every focus path
+ * (click, keyboard, IPC) updates the pointer, not only the flex
+ * commands. */
+void flexNoteFrameFocus(class YFrameWindow* frame);
 
 /*! Repaint the visible outline after the pen/color changed through IPC
  * (the focused frame has not moved, so no show() is triggered). */

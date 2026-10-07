@@ -1255,6 +1255,12 @@ bool flexFocus(YWindowManager* manager, const string& label) {
         // does setFocus() and then wmRaise() (RaiseOnFocus), which
         // physically raises the window within its layer.
         target->focus(true);
+        // remember the focused window of this frame explicitly: focus()
+        // routes through setFocus() which also updates it via
+        // flexNoteFrameFocus(), but when a multi-window frame is
+        // cycled through flexWindowFocusStep (or activate()) make sure
+        // the per-frame pointer follows the actual focus too.
+        f->noteFocus(target);
     }
     // visual feedback: flash the frame rectangle
     if (target != nullptr)
@@ -1523,8 +1529,25 @@ static bool flexWindowFocusStep(YWindowManager* manager, FlexFrameSet* set,
     YFrameWindow* cur = manager->getFocus();
     // index of the currently focused window in this frame, if any
     auto it = std::find(clients.begin(), clients.end(), cur);
-    // step from that window; when the focus is not in this frame, start
-    // from the frame's preferred (last visible) window. Wraps around.
+    if (it == clients.end() && clients.size() > 1) {
+        // The focus is not in this frame (e.g. `flex focus` arrived from
+        // another frame): restore the window that was focused here last,
+        // not the frame's preferred (last-attached) window. Without this,
+        // returning to a multi-window frame always jumps to the first
+        // window of the frame, losing the remembered focus.
+        YFrameWindow* remembered = f->focusTarget();
+        if (remembered != nullptr) {
+            set->setFocusedLabel(f->label());
+            set->noteFocusInGroups(f->label());
+            f->noteFocus(remembered);
+            remembered->activate(true, true);
+            flexApplyLayout(manager, manager->activeWorkspace());
+            flexFrameHighlight(manager, f->rect());
+            return true;
+        }
+    }
+    // step from the focused window; when the focus is not in this frame,
+    // start from the frame's preferred (last visible) window. Wraps.
     int start = (it != clients.end()) ? static_cast<int>(it - clients.begin())
                                       : static_cast<int>(clients.size());
     if (start == static_cast<int>(clients.size()))
@@ -1548,6 +1571,7 @@ static bool flexWindowFocusStep(YWindowManager* manager, FlexFrameSet* set,
     // raise the window and give it focus; a subsequent flexApplyLayout
     // (below) also re-applies the frame's current rectangle, so the
     // window matches a frame that was resized/moved since it was bound.
+    f->noteFocus(next);   // remember the window currently focused here
     next->activate(true, true);
     flexApplyLayout(manager, manager->activeWorkspace());
     flexFrameHighlight(manager, f->rect());
