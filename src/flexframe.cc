@@ -52,11 +52,24 @@ bool FlexFrame::hasClient(const YFrameWindow* frame) const {
 }
 
 YFrameWindow* FlexFrame::focusTarget() const {
+    // Fullscreen windows are accepted for activation only when no plain
+    // window is available: frames holding exclusively fullscreen windows
+    // (a common "fullscreen stack" in one frame) must still be
+    // focusable, while mixed frames keep preferring the plain window.
+    bool anyPlain = false;
+    for (auto it = clients_.begin(); it != clients_.end(); ++it) {
+        YFrameWindow* frame = *it;
+        if (frame && !frame->isMinimized() && !frame->isHidden() &&
+            !frame->isRollup() && !frame->isFullscreen()) {
+            anyPlain = true;
+            break;
+        }
+    }
     for (auto it = clients_.rbegin(); it != clients_.rend(); ++it) {
         YFrameWindow* frame = *it;
         if (frame &&
             (frame->isMinimized() || frame->isHidden() ||
-             frame->isRollup() || frame->isFullscreen()))
+             frame->isRollup() || (frame->isFullscreen() && anyPlain)))
             continue;
         return frame;
     }

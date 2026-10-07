@@ -1195,6 +1195,9 @@ bool flexRemove(YWindowManager* manager, const string& label) {
     return ok;
 }
 
+static bool flexWindowFocusStep(YWindowManager* manager, FlexFrameSet* set,
+                                const string& label, bool forward);
+
 bool flexFocus(YWindowManager* manager, const string& label) {
     if (manager == nullptr)
         return false;
@@ -1205,6 +1208,13 @@ bool flexFocus(YWindowManager* manager, const string& label) {
     FlexFrame* f = set->find(label);
     if (f == nullptr)
         return false;
+    // A frame can hold several windows (e.g. a stack of fullscreen
+    // windows). Cycling `flex focus <label>` should step to the next
+    // window like `flex window next` does, not re-focus whatever
+    // focusTarget() returns (which is the same window every call).
+    if (f->clientCount() > 1) {
+        return flexWindowFocusStep(manager, set, label, true);
+    }
     YFrameWindow* target = f->focusTarget();
     set->setFocusedLabel(label);
     // keep the group "last focused" pointers in sync with direct focus
