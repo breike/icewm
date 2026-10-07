@@ -1206,8 +1206,30 @@ bool flexFocus(YWindowManager* manager, const string& label) {
     if (set == nullptr)
         return false;
     FlexFrame* f = set->find(label);
-    if (f == nullptr)
-        return false;
+    // The frame may live on another (sub-)workspace: windows are bound
+    // per-workspace, so `flex focus` from a different tag must first
+    // switch to the workspace that owns the frame, otherwise nothing
+    // becomes visible (the frame's windows are hidden there). Look it
+    // up across all workspaces like workspaceMoveFrame() does, then
+    // activate that workspace and continue on its own set.
+    if (f == nullptr) {
+        for (int i = 0; f == nullptr && i < workspaceCount; ++i) {
+            if (i == ws)
+                continue;
+            FlexFrameSet* other = Tiling::instance().flex(i);
+            if (other == nullptr)
+                continue;
+            f = other->find(label);
+            if (f != nullptr) {
+                manager->activateWorkspace(i);
+                ws = i;
+                set = other;
+                break;
+            }
+        }
+        if (f == nullptr)
+            return false;
+    }
     // A frame can hold several windows (e.g. a stack of fullscreen
     // windows). Cycling `flex focus <label>` should step to the next
     // window like `flex window next` does, not re-focus whatever
