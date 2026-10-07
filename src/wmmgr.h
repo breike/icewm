@@ -182,6 +182,10 @@ public:
     void raiseFocusFrame(YFrameWindow* frame);
 
     void restackWindows();
+    //! True when the layer order changed (setAbove/setBelow) and the
+    //! X stack needs a restack; used to skip the expensive full-window
+    //! XRestackWindows on focus changes that leave the order alone.
+    bool layeredUpdated() const { return fLayeredUpdated; }
     void focusTopWindow();
     YFrameWindow *getFrameUnderMouse(int workspace = AllWorkspaces);
     YFrameWindow *getLastFocus(bool skipAllWorkspaces = false,

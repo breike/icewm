@@ -1851,7 +1851,14 @@ void YFrameWindow::doLower(bool lff) {
 void YFrameWindow::wmRaise() {
     if (canRaise()) {
         doRaise();
-        manager->restackWindows();
+        // Restack only when the layer order actually changed: the full
+        // XRestackWindows of every window is expensive on a busy
+        // desktop, and on a plain focus switch the order usually does
+        // not move (the raised window was already on top of its layer).
+        // doRaise() flips fLayeredUpdated only when setAbove moved a
+        // window, so a no-op raise skips the server round-trip.
+        if (manager->layeredUpdated())
+            manager->restackWindows();
         if (focused()) {
             if (container()->buttoned()) {
                 container()->releaseButtons();
